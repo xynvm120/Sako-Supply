@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import path from "node:path";
+
 test("customer wholesale purchase, demo card, receipt printing, and delivery map", async ({
   page,
   playwright,
@@ -9,6 +9,14 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
   await page.goto("/");
   await expect(page.locator(".product")).toHaveCount(5);
   await page.screenshot({ path: "/tmp/sako-desktop.png", fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  const headerBounds = await page.locator("header").boundingBox();
+  const navBounds = await page.locator("header nav").boundingBox();
+  expect(navBounds.y + navBounds.height).toBeLessThanOrEqual(
+    headerBounds.y + headerBounds.height,
+  );
+  await page.screenshot({ path: "/tmp/sako-guest-mobile.png", fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 720 });
   await page
     .getByRole("button", { name: "View Dinorado details", exact: true })
     .click();
@@ -17,6 +25,7 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
   await detail.getByLabel("Number of sacks").fill("5");
   await detail.getByRole("button", { name: "Add to bag" }).click();
   await detail.getByRole("button", { name: "Close", exact: true }).click();
+  await expect(page.locator("#admin-link")).toBeHidden();
   await page.locator("#cart-button").click();
   await page.getByRole("button", { name: "Sign in to order" }).click();
   await page
@@ -32,6 +41,8 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
   await page.getByRole("button", { name: "Create account →" }).click();
   await expect(page.locator("#account-dialog")).not.toBeVisible();
   const cart = page.locator("#cart-dialog");
+  await expect(page.locator("#admin-link")).toBeHidden();
+  await expect(cart.getByLabel("Receive your order")).toHaveValue("");
   await cart.getByLabel("Mobile number").fill("09123456789");
   await cart.getByLabel("Receive your order").selectOption("delivery");
   await cart
@@ -65,7 +76,7 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
     .locator("#receipt-dialog")
     .getByRole("button", { name: "Close", exact: true })
     .click();
-  await cart.getByRole("button", { name: "View order / tracking" }).click();
+  await cart.getByRole("button", { name: "Open delivery map" }).click();
   await expect(page.locator("#detail-content")).toContainText(
     "SIMULATED TRACKING",
   );
@@ -82,12 +93,17 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
   await admin.patch("/api/admin/status", {
     data: { id: order.id, status: "Out for delivery" },
   });
-  await page
-    .getByRole("button", { name: "Refresh status", exact: true })
-    .click();
   await expect(page.locator("#tracking-label")).toContainText(
     "Out for delivery",
+    { timeout: 12000 },
   );
+  await expect(page.locator("#live-order-status")).toContainText(
+    "Out for delivery",
+  );
+  await expect(page.locator("#live-timeline")).toContainText(
+    "Out for delivery",
+  );
+  await expect(page.locator("img.leaflet-image-layer")).toBeVisible();
   const first = (
     await (await admin.get(`/api/orders/${order.id}/tracking`)).json()
   ).progress;
@@ -120,10 +136,11 @@ test("admin dashboard product management, stock, customer history, and report ex
 }) => {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/");
-  await page.locator("#admin-link").click();
+  await page.goto("/admin");
+  await expect(page.locator("#admin-link")).toBeHidden();
   await page.getByLabel("Admin password").fill("browser-admin-password");
   await page.locator("#login").getByRole("button").click();
+  await expect(page.locator("#admin-link")).toBeVisible();
   await expect(page.locator("#admin-panel")).toContainText(
     "A good day to do business.",
   );
@@ -136,11 +153,46 @@ test("admin dashboard product management, stock, customer history, and report ex
   await editor
     .getByLabel("Product description")
     .fill("A fictional sample product for a browser test.");
+  const photoOne = await page.screenshot();
+  await editor.getByLabel("Choose product image").setInputFiles({
+    name: "rice-one.png",
+    mimeType: "image/png",
+    buffer: photoOne,
+  });
+  await expect(editor.locator("#product-photo-preview img")).toBeVisible();
   await editor.getByRole("button", { name: "Save product" }).click();
   await expect(page.locator("#admin-panel")).toContainText("Demo white rice");
   const row = page
     .locator(".admin-table tr")
     .filter({ hasText: "Demo white rice" });
+  await expect(row.locator("img")).toBeVisible();
+  const originalPhoto = await row.locator("img").getAttribute("src");
+  await row.getByRole("button", { name: "Change image" }).click();
+  await expect(editor.locator("#product-photo-preview img")).toHaveAttribute(
+    "src",
+    originalPhoto,
+  );
+  const photoTwo = await page.screenshot();
+  await editor.getByLabel("Choose product image").setInputFiles({
+    name: "rice-two.png",
+    mimeType: "image/png",
+    buffer: photoTwo,
+  });
+  await editor.getByRole("button", { name: "Save product" }).click();
+  await expect(row.locator("img")).not.toHaveAttribute("src", originalPhoto);
+  const replacementPhoto = await row.locator("img").getAttribute("src");
+  await page.reload();
+  await expect(page.locator("#admin-panel")).toContainText(
+    "A good day to do business.",
+  );
+  await page.getByRole("button", { name: "Products & inventory" }).click();
+  await expect(row.locator("img")).toHaveAttribute("src", replacementPhoto);
+  await row.getByRole("button", { name: "Change image" }).click();
+  await editor
+    .getByRole("button", { name: "Remove image", exact: true })
+    .click();
+  await editor.getByRole("button", { name: "Save product" }).click();
+  await expect(row.locator("img")).toHaveCount(0);
   await row.getByRole("button", { name: "Adjust stock" }).click();
   await editor.getByLabel("Adjustment in sacks").fill("20");
   await editor.getByLabel("Reason").fill("Browser test supplier delivery");
@@ -165,6 +217,7 @@ test("admin dashboard product management, stock, customer history, and report ex
   expect((await download).suggestedFilename()).toBe("sako-sales.csv");
   await page.getByRole("button", { name: "Log out", exact: false }).click();
   await expect(page.locator("#admin-dialog")).not.toBeVisible();
+  await expect(page.locator("#admin-link")).toBeHidden();
   expect(errors).toEqual([]);
 });
 test("mobile storefront, search and product modal fit a narrow viewport", async ({
@@ -192,4 +245,101 @@ test("mobile storefront, search and product modal fit a narrow viewport", async 
   await expect(page.locator(".product")).toHaveCount(1);
   await page.getByLabel("Search rice", { exact: true }).fill("");
   await page.screenshot({ path: "/tmp/sako-mobile.png", fullPage: true });
+});
+
+test("pickup orders explain why no map is shown and refresh status automatically", async ({
+  page,
+  playwright,
+}) => {
+  await page.goto("/");
+  await page.request.post("/api/auth/register", {
+    data: {
+      name: "Pickup Buyer",
+      email: "pickup-browser@example.test",
+      password: "pickup-password-123",
+    },
+  });
+  await page.reload();
+  await expect(page.locator("#account-link")).toContainText("Pickup");
+  const placed = await page.request.post("/api/orders", {
+    data: {
+      customer: "Pickup Buyer",
+      phone: "09123456789",
+      method: "pickup",
+      payment_method: "cash",
+      items: [{ id: 1, quantity: 1 }],
+    },
+  });
+  const order = await placed.json();
+  await page.locator("#orders-link").click();
+  await page.locator("#orders-content [data-order]").click();
+  await expect(page.locator(".pickup-card")).toContainText(
+    "You chose store pickup",
+  );
+  await expect(page.locator("#delivery-map")).toHaveCount(0);
+  const admin = await playwright.request.newContext({
+    baseURL: "http://127.0.0.1:32189",
+  });
+  await admin.post("/api/login", {
+    data: { password: "browser-admin-password" },
+  });
+  await admin.patch("/api/admin/status", {
+    data: { id: order.id, status: "Preparing" },
+  });
+  await admin.patch("/api/admin/status", {
+    data: { id: order.id, status: "Ready for pickup" },
+  });
+  await expect(page.locator("#live-order-status")).toContainText(
+    "Ready for pickup",
+    { timeout: 12000 },
+  );
+  await admin.dispose();
+});
+test("delivery map has a local illustrated background even if street tiles are blocked", async ({
+  page,
+}) => {
+  await page.route("https://tile.openstreetmap.org/**", (route) =>
+    route.abort(),
+  );
+  await page.goto("/");
+  await page.request.post("/api/auth/register", {
+    data: {
+      name: "Offline Map Buyer",
+      email: "offline-map@example.test",
+      password: "offline-password-123",
+    },
+  });
+  await page.reload();
+  await page.request.post("/api/orders", {
+    data: {
+      customer: "Offline Map Buyer",
+      phone: "09123456789",
+      address: "Fictional destination",
+      method: "delivery",
+      payment_method: "cash",
+      items: [{ id: 1, quantity: 1 }],
+    },
+  });
+  await page.locator("#orders-link").click();
+  await page.locator("#orders-content [data-order]").click();
+  await expect(page.locator("#delivery-map")).toBeVisible();
+  await expect(page.locator("img.leaflet-image-layer")).toHaveAttribute(
+    "src",
+    "/assets/demo-map.svg",
+  );
+  await expect(page.locator("img.leaflet-image-layer")).toBeVisible();
+  await expect(page.locator("#map-tile-note")).toBeVisible();
+  await expect(page.locator("#tracking-label")).toContainText(
+    "Waiting for the admin",
+  );
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.locator("#delivery-map")).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.locator("#delivery-map").scrollIntoViewIfNeeded();
+  await expect(page.locator(".truck-marker")).toBeInViewport();
+  await page.screenshot({ path: "/tmp/sako-mobile-tracking.png" });
 });

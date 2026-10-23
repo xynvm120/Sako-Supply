@@ -892,6 +892,9 @@ const server = http.createServer(async (req, res) => {
     }
     const files = {
       "/": "public/index.html",
+      "/admin": "public/index.html",
+      "/assets/rice-fields.svg": "public/assets/rice-fields.svg",
+      "/assets/demo-map.svg": "public/assets/demo-map.svg",
       "/app.js": "public/app.js",
       "/style.css": "public/style.css",
       "/leaflet.js": "node_modules/leaflet/dist/leaflet.js",
@@ -900,11 +903,13 @@ const server = http.createServer(async (req, res) => {
     if (!files[p]) throw fail(404, "Not found.");
     const content = readFileSync(path.join(root, files[p]));
     res.writeHead(200, {
-      "Content-Type": p.endsWith(".js")
-        ? "text/javascript; charset=utf-8"
-        : p.endsWith(".css")
-          ? "text/css; charset=utf-8"
-          : "text/html; charset=utf-8",
+      "Content-Type": p.endsWith(".svg")
+        ? "image/svg+xml"
+        : p.endsWith(".js")
+          ? "text/javascript; charset=utf-8"
+          : p.endsWith(".css")
+            ? "text/css; charset=utf-8"
+            : "text/html; charset=utf-8",
     });
     res.end(method === "HEAD" ? undefined : content);
   } catch (e) {

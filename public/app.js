@@ -71,9 +71,16 @@ function save() {
   $("#cart-count").textContent = Object.values(cart).reduce((a, b) => a + b, 0);
 }
 function accountLabel() {
-  $("#account-link").textContent = user
-    ? `Hi, ${user.name.split(" ")[0]}`
-    : "Sign in";
+  $("#account-link").textContent = isAdmin
+    ? "Admin account"
+    : user
+      ? `Hi, ${user.name.split(" ")[0]}`
+      : "Sign in";
+  $("#admin-link").hidden = !isAdmin;
+  $("#orders-link").hidden = !user;
+  $("#welcome-title").textContent = user
+    ? `Fresh picks for you, ${user.name.split(" ")[0]}.`
+    : "A little closer to the harvest.";
 }
 function sack(p) {
   if (p.image)
@@ -243,13 +250,14 @@ function authView(mode = "login") {
     }
   };
 }
-$("#account-link").onclick = () => authView();
+$("#account-link").onclick = () =>
+  isAdmin ? adminView("overview") : authView();
 function cartView() {
   const items = products.filter((p) => cart[p.id]);
   const sub = items.reduce((a, p) => a + p.price * cart[p.id], 0),
     count = items.reduce((a, p) => a + cart[p.id], 0);
   $("#cart-content").innerHTML = items.length
-    ? `<div class="demo-notice">DEFENSE DEMO · No real payments or deliveries</div>${items.map((p) => `<div class="cart-row"><div><b>${esc(p.name)} · 25 kg</b><small>${money(p.price)} per sack</small></div><div class="quantity"><button data-change="${p.id}" data-delta="-1" aria-label="Decrease quantity">−</button><input class="cart-qty" data-quantity="${p.id}" aria-label="Sacks of ${esc(p.name)}" type="number" min="1" max="${p.stock}" value="${cart[p.id]}"><button data-change="${p.id}" data-delta="1" aria-label="Increase quantity">+</button></div><b>${money(p.price * cart[p.id])}</b><button class="remove" data-remove="${p.id}" aria-label="Remove ${esc(p.name)}">×</button></div>`).join("")}<p class="form-note">${count} sacks · ${count * 25} kg total. Every listed package is a 25 kg sack.</p>${user ? `<form id="checkout"><h3>Where’s your next good meal?</h3><div class="form-grid"><label>Full name<input name="customer" value="${esc(user.name)}" autocomplete="name" required maxlength="150"></label><label>Mobile number<input name="phone" value="${esc(user.phone)}" type="tel" autocomplete="tel" placeholder="09XXXXXXXXX" required pattern="[+0-9 -]{10,16}"></label><label class="wide">Receive your order<select name="method" id="method"><option value="pickup">Store pickup · Free</option><option value="delivery">Local delivery · ${money(config.deliveryFee)} demo fee</option></select></label><label class="wide" id="address-label" hidden>Delivery address<textarea name="address" maxlength="500" autocomplete="street-address">${esc(user.address)}</textarea></label><label class="wide">Payment method<select name="payment_method" id="payment-method"><option value="cash">Cash on pickup / delivery</option><option value="card">Card · Simulation</option><option value="gcash">GCash · Simulation</option><option value="maya">Maya · Simulation</option></select></label></div><div id="payment-fields"></div><div class="total"><span>Total <small id="delivery-note"></small></span><b id="checkout-total">${money(sub)}</b></div><p class="form-note">Stock is reserved after a successful order. The ${money(config.deliveryFee)} flat delivery fee is a sample rate; delivery coverage and bulk freight pricing require store confirmation.</p><button class="primary checkout-button" type="submit">Place demo order →</button><p id="checkout-error" role="alert"></p></form>` : '<div class="empty"><h3>Keep your orders in one place.</h3><p>Sign in or create an account to check out.</p><button class="primary" id="checkout-signin">Sign in to order →</button></div>'}`
+    ? `<div class="demo-notice">DEFENSE DEMO · No real payments or deliveries</div>${items.map((p) => `<div class="cart-row"><div><b>${esc(p.name)} · 25 kg</b><small>${money(p.price)} per sack</small></div><div class="quantity"><button data-change="${p.id}" data-delta="-1" aria-label="Decrease quantity">−</button><input class="cart-qty" data-quantity="${p.id}" aria-label="Sacks of ${esc(p.name)}" type="number" min="1" max="${p.stock}" value="${cart[p.id]}"><button data-change="${p.id}" data-delta="1" aria-label="Increase quantity">+</button></div><b>${money(p.price * cart[p.id])}</b><button class="remove" data-remove="${p.id}" aria-label="Remove ${esc(p.name)}">×</button></div>`).join("")}<p class="form-note">${count} sacks · ${count * 25} kg total. Every listed package is a 25 kg sack.</p>${user ? `<form id="checkout"><h3>Where’s your next good meal?</h3><div class="form-grid"><label>Full name<input name="customer" value="${esc(user.name)}" autocomplete="name" required maxlength="150"></label><label>Mobile number<input name="phone" value="${esc(user.phone)}" type="tel" autocomplete="tel" placeholder="09XXXXXXXXX" required pattern="[+0-9 -]{10,16}"></label><label class="wide">Receive your order<select name="method" id="method" required><option value="" selected disabled>Choose delivery or pickup</option><option value="delivery">Local delivery + tracking · ${money(config.deliveryFee)} demo fee</option><option value="pickup">Store pickup · Free · No delivery map</option></select></label><div class="fulfillment-hint wide" id="fulfillment-hint">Choose <b>Local delivery</b> for a delivery map, or <b>Store pickup</b> to collect your sacks yourself.</div><label class="wide" id="address-label" hidden>Delivery address<textarea name="address" maxlength="500" autocomplete="street-address">${esc(user.address)}</textarea></label><label class="wide">Payment method<select name="payment_method" id="payment-method"><option value="cash">Cash on pickup / delivery</option><option value="card">Card · Simulation</option><option value="gcash">GCash · Simulation</option><option value="maya">Maya · Simulation</option></select></label></div><div id="payment-fields"></div><div class="total"><span>Total <small id="delivery-note"></small></span><b id="checkout-total">${money(sub)}</b></div><p class="form-note">Stock is reserved after a successful order. The ${money(config.deliveryFee)} flat delivery fee is a sample rate; delivery coverage and bulk freight pricing require store confirmation.</p><button class="primary checkout-button" type="submit">Place demo order →</button><p id="checkout-error" role="alert"></p></form>` : '<div class="empty"><h3>Keep your orders in one place.</h3><p>Sign in or create an account to check out.</p><button class="primary" id="checkout-signin">Sign in to order →</button></div>'}`
     : '<div class="empty"><h3>Your bag is waiting for something good.</h3><p>Add your favorite 25 kg sacks to get started.</p><button class="primary" id="continue-shopping">Explore the rice collection →</button></div>';
   if (!items.length) {
     $("#continue-shopping").onclick = () => $("#cart-dialog").close();
@@ -267,6 +275,9 @@ function cartView() {
       sub + (d ? config.deliveryFee : 0),
     );
     $("#delivery-note").textContent = d ? "(delivery included)" : "";
+    $("#fulfillment-hint").textContent = d
+      ? "Delivery selected: your map appears immediately; the demo truck moves after the admin dispatches your order."
+      : "Pickup selected: collect your sacks from the store. There is no delivery journey to track.";
   };
   $("#payment-method").onchange = paymentFields;
   $("#checkout").onsubmit = async (e) => {
@@ -302,7 +313,7 @@ function cartView() {
       cart = {};
       save();
       $("#cart-content").innerHTML =
-        `<div class="success"><div style="font-size:50px">✓</div><h3>Your sacks are reserved.</h3><p>Order reference</p><strong>${esc(result.id)}</strong><p>${money(result.total)} · ${esc(paymentName(result.payment_method))}</p>${badge(result.payment_status)}<p class="form-note">Demo order only. No funds have moved.</p><div class="action-row"><button class="primary" id="success-receipt">View & print receipt</button><button class="secondary" id="success-track">View order / tracking</button></div></div>`;
+        `<div class="success"><div style="font-size:50px">✓</div><h3>Your sacks are reserved.</h3><p>Order reference</p><strong>${esc(result.id)}</strong><p>${money(result.total)} · ${esc(paymentName(result.payment_method))}</p>${badge(result.payment_status)}<p class="form-note">${result.method === "delivery" ? "Delivery selected — open your map below. The truck moves after admin dispatch." : "Store pickup selected — no delivery map. Collect your order when it is ready."} Demo order only. No funds have moved.</p><div class="action-row"><button class="primary" id="success-receipt">View & print receipt</button><button class="secondary" id="success-track">${result.method === "delivery" ? "Open delivery map" : "View pickup order"}</button></div></div>`;
       $("#success-receipt").onclick = () => receiptView(result.id);
       $("#success-track").onclick = () => orderView(result.id);
       await refresh();
@@ -402,7 +413,12 @@ async function receiptView(id) {
   }
 }
 $("#print-receipt").onclick = () => window.print();
+let trackingGeneration = 0;
+let mapResizeObserver = null;
 function stopTracking() {
+  trackingGeneration++;
+  mapResizeObserver?.disconnect();
+  mapResizeObserver = null;
   clearInterval(trackingTimer);
   trackingTimer = null;
   if (map) {
@@ -416,22 +432,68 @@ async function orderView(id) {
   stopTracking();
   show("#detail-dialog");
   $("#detail-content").innerHTML = "<p>Loading order…</p>";
+  const generation = trackingGeneration;
   try {
     const o = await api("/api/orders/" + encodeURIComponent(id));
-    $("#detail-content").innerHTML =
-      `<div class="section-line"><h3>${esc(o.id)}</h3>${badge(o.status)}</div><p>${esc(o.customer)} · ${esc(o.phone)}</p><p>${o.method === "delivery" ? esc(o.address) : "Store pickup"} · ${money(o.total)}</p><p>${esc(paymentName(o.payment_method))} · ${badge(o.payment_status)}</p><ul class="order-items">${o.items.map((i) => `<li>${i.quantity} × ${esc(i.name)} · ${i.weight} kg <b>${money(i.price * i.quantity)}</b></li>`).join("")}</ul><h3>Order timeline</h3><ol class="timeline">${o.events.map((e) => `<li><strong>${esc(e.status)}</strong><small>${date(e.created)}</small></li>`).join("") || "<li>Legacy order: no status history recorded.</li>"}</ol>${o.method === "delivery" ? '<h3>Delivery map</h3><div class="demo-notice">SIMULATED TRACKING · NOT LIVE DRIVER GPS</div><p class="form-note">Sample route in Koronadal. It does not represent your entered address. Position updates every 5 seconds while this view is open.</p><div id="delivery-map" aria-label="Simulated delivery route map"></div><p id="map-tile-note" class="demo-notice" hidden>Map background is unavailable on this network. The sample route and moving marker still work.</p><p id="tracking-label" role="status"></p><p class="form-note">Map tiles require Internet access. The route and progress remain available without tiles.</p>' : '<p class="demo-notice">Pickup order · No delivery tracking required.</p>'}<div class="action-row"><button class="primary" id="detail-receipt">Print receipt</button><button class="secondary" id="refresh-order">Refresh status</button></div>`;
+    if (generation !== trackingGeneration || !$("#detail-dialog").open) return;
+    const delivery = o.method === "delivery";
+    $("#detail-content").innerHTML = `
+      <div class="order-summary"><div><span class="eyebrow">${delivery ? "YOUR DELIVERY" : "YOUR STORE PICKUP"}</span><h3>${esc(o.id)}</h3><p>${esc(o.customer)} · ${esc(o.phone)}</p></div><div><span id="live-order-status">${badge(o.status)}</span><p class="order-summary-total">${money(o.total)}</p></div></div>
+      ${delivery ? `<section class="tracking-card"><div class="section-line"><div><h3>Your delivery map</h3><p class="form-note">Sample Koronadal route · Simulation, not driver GPS</p></div><span class="live-pill"><i></i> Updates every 5s</span></div><div class="demo-notice">SIMULATED TRACKING · NOT LIVE DRIVER GPS</div><div id="delivery-map" aria-label="Simulated delivery route map"></div><div class="map-legend"><span>● Demo store</span><span>● Demo destination</span><span id="map-background-label">Illustrated fallback if street tiles are unavailable</span></div><div class="delivery-progress"><div><i id="delivery-progress-bar"></i></div><b id="delivery-progress-number">0%</b></div><p id="tracking-label" role="status">Loading delivery position…</p><p id="map-tile-note" class="form-note" hidden>Street tiles are unavailable. Showing an illustrated demo area with the updating route.</p><p class="form-note">Destination below is your entered address; this fixed demonstration map does not route to it. Movement begins when the admin selects Out for delivery.</p></section>` : `<section class="pickup-card"><div class="pickup-icon">↗</div><div><h3>You chose store pickup</h3><p>You’ll collect your sacks from the store. Pickup orders do not have a delivery map.</p><p class="form-note">Status updates automatically. The store will contact you when your order is ready.</p></div></section>`}
+      <div class="order-info-grid"><section><h3>${delivery ? "Delivery address" : "Collection"}</h3><p>${delivery ? esc(o.address) : "Store pickup · Collection details to be confirmed"}</p><h3>Payment</h3><p>${esc(paymentName(o.payment_method))} · <span id="live-payment-status">${badge(o.payment_status)}</span></p><h3>Your sacks</h3><ul class="order-items">${o.items.map((i) => `<li><span>${i.quantity} × ${esc(i.name)} · ${i.weight} kg</span><b>${money(i.price * i.quantity)}</b></li>`).join("")}</ul></section><section><h3>Order timeline</h3><ol id="live-timeline" class="timeline"></ol><p class="form-note" id="order-last-updated"></p></section></div><div class="action-row"><button class="primary" id="detail-receipt">Print receipt</button><button class="secondary" id="refresh-order">Refresh status</button></div>`;
     $("#detail-receipt").onclick = () => receiptView(o.id);
     $("#refresh-order").onclick = () => orderView(o.id);
-    if (o.method === "delivery") {
+    function updateOrder(latest) {
+      $("#live-order-status").innerHTML = badge(latest.status);
+      $("#live-payment-status").innerHTML = badge(latest.payment_status);
+      $("#live-timeline").innerHTML =
+        latest.events
+          .map(
+            (e) =>
+              `<li><strong>${esc(e.status)}</strong><small>${date(e.created)}</small></li>`,
+          )
+          .join("") || "<li>Legacy order: no status history recorded.</li>";
+      $("#order-last-updated").textContent =
+        "Updated " + date(new Date().toISOString());
+    }
+    updateOrder(o);
+    function updateMap(t) {
+      marker?.setLatLng(t.position);
+      const progress = Math.round(t.progress * 100);
+      $("#delivery-progress-bar").style.width = progress + "%";
+      $("#delivery-progress-number").textContent = progress + "%";
+      const explanation =
+        t.status === "Cancelled"
+          ? "Order cancelled. Delivery simulation stopped."
+          : t.status === "Completed"
+            ? "Order completed. Demo destination reached."
+            : t.status === "Out for delivery"
+              ? "The demo truck is moving. This is not a real GPS feed."
+              : "Your map is ready. Waiting for the admin to dispatch your order.";
+      $("#tracking-label").textContent =
+        `${t.status} · ${progress}% of demo route · ${explanation} Updated ${date(t.updated)}`;
+    }
+    if (delivery) {
       const tracking = await api(
         `/api/orders/${encodeURIComponent(id)}/tracking`,
       );
-      if (!$("#detail-dialog").open || !$("#delivery-map")) return;
+      if (generation !== trackingGeneration || !$("#detail-dialog").open)
+        return;
       if (window.L) {
         map = L.map("delivery-map", { scrollWheelZoom: false }).setView(
           tracking.route[0],
           15,
         );
+        map.createPane("offlineBasemap");
+        map.getPane("offlineBasemap").style.zIndex = 199;
+        L.imageOverlay(
+          "/assets/demo-map.svg",
+          [
+            [6.498, 124.842],
+            [6.51, 124.855],
+          ],
+          { pane: "offlineBasemap", interactive: false },
+        ).addTo(map);
         L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
           attribution:
             '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -440,48 +502,81 @@ async function orderView(id) {
           .on("tileerror", () => {
             if ($("#map-tile-note")) $("#map-tile-note").hidden = false;
           })
+          .on("tileload", () => {
+            if ($("#map-background-label"))
+              $("#map-background-label").textContent =
+                "OpenStreetMap street tiles";
+          })
           .addTo(map);
         L.polyline(tracking.route, {
-          color: "#164d37",
+          color: "#246346",
           weight: 5,
-          dashArray: "8 7",
+          dashArray: "9 7",
         }).addTo(map);
-        L.circleMarker(tracking.route[0], { color: "#164d37", radius: 8 })
+        L.circleMarker(tracking.route[0], {
+          color: "#246346",
+          fillColor: "#fff",
+          fillOpacity: 1,
+          radius: 8,
+        })
           .addTo(map)
           .bindTooltip("Demo store");
-        L.circleMarker(tracking.route.at(-1), { color: "#b27633", radius: 8 })
+        L.circleMarker(tracking.route.at(-1), {
+          color: "#ba8239",
+          fillColor: "#fff",
+          fillOpacity: 1,
+          radius: 8,
+        })
           .addTo(map)
           .bindTooltip("Demo destination");
         marker = L.marker(tracking.position, {
           icon: L.divIcon({
             className: "truck-marker",
             html: "🚚",
-            iconSize: [34, 34],
-            iconAnchor: [17, 17],
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
           }),
         }).addTo(map);
-        map.fitBounds(tracking.route, { padding: [30, 30] });
+        map.fitBounds(tracking.route, { padding: [45, 45] });
+        mapResizeObserver = new ResizeObserver(() => {
+          if (map && generation === trackingGeneration) {
+            map.invalidateSize({ animate: false });
+            map.fitBounds(tracking.route, {
+              padding: [30, 30],
+              animate: false,
+            });
+          }
+        });
+        mapResizeObserver.observe($("#delivery-map"));
         setTimeout(() => map?.invalidateSize(), 100);
+      } else {
+        $("#delivery-map").innerHTML =
+          '<div class="map-unavailable"><img src="/assets/demo-map.svg" alt="Illustrated demonstration area"><span>Interactive map could not load. Run npm install, restart the server, and refresh. Status and progress still update below.</span></div>';
       }
-      function update(t) {
-        if (!$("#tracking-label")) return;
-        marker?.setLatLng(t.position);
-        $("#tracking-label").textContent =
-          `${t.status} · ${Math.round(t.progress * 100)}% of demo route · ${t.position.map((n) => n.toFixed(5)).join(", ")} · Updated ${date(t.updated)}${t.status === "Out for delivery" ? "" : ". Motion begins when admin dispatches the order."}`;
-      }
-      update(tracking);
-      trackingTimer = setInterval(async () => {
-        try {
-          if (!$("#detail-dialog").open) return stopTracking();
-          update(await api(`/api/orders/${encodeURIComponent(id)}/tracking`));
-        } catch (e) {
-          if ($("#tracking-label"))
-            $("#tracking-label").textContent = e.message;
-        }
-      }, 5000);
+      updateMap(tracking);
     }
+    trackingTimer = setInterval(async () => {
+      if (document.hidden) return;
+      try {
+        const [latest, t] = await Promise.all([
+          api("/api/orders/" + encodeURIComponent(id)),
+          delivery
+            ? api(`/api/orders/${encodeURIComponent(id)}/tracking`)
+            : Promise.resolve(null),
+        ]);
+        if (generation !== trackingGeneration || !$("#detail-dialog").open)
+          return;
+        updateOrder(latest);
+        if (t) updateMap(t);
+      } catch (e) {
+        if (generation === trackingGeneration && $("#order-last-updated"))
+          $("#order-last-updated").textContent =
+            "Connection interrupted. Retrying automatically…";
+      }
+    }, 5000);
   } catch (e) {
-    $("#detail-content").textContent = e.message;
+    if (generation === trackingGeneration)
+      $("#detail-content").textContent = e.message;
   }
 }
 async function adminView(tab = adminTab) {
@@ -535,6 +630,8 @@ async function adminView(tab = adminTab) {
       try {
         await post("/api/logout", {});
         isAdmin = false;
+        accountLabel();
+        history.replaceState({}, "", "/");
         $("#admin-dialog").close();
         toast("Admin logged out");
       } catch (e) {
@@ -655,7 +752,7 @@ function ordersPanel(customerId) {
 }
 function inventoryPanel() {
   $("#admin-panel").innerHTML =
-    `<div class="section-line"><h2>Products & inventory</h2><button class="primary" id="new-product">+ Add product</button></div><p class="form-note">All new products are 25 kg sacks. Stock adjustments require a reason. Historical 5 kg products remain archived.</p><div class="table-scroll"><table class="admin-table"><thead><tr><th>Rice product</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody>${adminData.products.map((p) => `<tr><td><b>${esc(p.name)}</b><small>${p.weight} kg · ${p.active ? "Active" : "Archived"}</small></td><td>${money(p.price)}</td><td>${p.stock} sacks</td><td><button class="small-button" data-edit="${p.id}">Edit</button><button class="small-button" data-adjust="${p.id}">Adjust stock</button></td></tr>`).join("")}</tbody></table></div><h3>Recent stock movements</h3><div class="table-scroll"><table class="admin-table"><thead><tr><th>Product</th><th>Change</th><th>Reason</th><th>Date</th></tr></thead><tbody>${adminData.movements.map((m) => `<tr><td>${esc(m.name)}</td><td>${m.delta > 0 ? "+" : ""}${m.delta}</td><td>${esc(m.reason)}</td><td>${date(m.created)}</td></tr>`).join("") || '<tr><td colspan="4">No adjustments recorded yet.</td></tr>'}</tbody></table></div>`;
+    `<div class="section-line"><h2>Products & inventory</h2><button class="primary" id="new-product">+ Add product</button></div><p class="form-note">All new products are 25 kg sacks. Stock adjustments require a reason. Historical 5 kg products remain archived.</p><div class="table-scroll"><table class="admin-table"><thead><tr><th>Rice product</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody>${adminData.products.map((p) => `<tr><td><div class="inventory-product">${p.image ? `<img src="${esc(p.image)}" alt="${esc(p.name)}">` : '<span class="inventory-placeholder">25<small>kg</small></span>'}<div><b>${esc(p.name)}</b><small>${p.weight} kg · ${p.active ? "Active" : "Archived"}</small></div></div></td><td>${money(p.price)}</td><td>${p.stock} sacks</td><td><button class="small-button" data-edit="${p.id}">Edit</button><button class="small-button" data-image="${p.id}">Change image</button><button class="small-button" data-adjust="${p.id}">Adjust stock</button></td></tr>`).join("")}</tbody></table></div><h3>Recent stock movements</h3><div class="table-scroll"><table class="admin-table"><thead><tr><th>Product</th><th>Change</th><th>Reason</th><th>Date</th></tr></thead><tbody>${adminData.movements.map((m) => `<tr><td>${esc(m.name)}</td><td>${m.delta > 0 ? "+" : ""}${m.delta}</td><td>${esc(m.reason)}</td><td>${date(m.created)}</td></tr>`).join("") || '<tr><td colspan="4">No adjustments recorded yet.</td></tr>'}</tbody></table></div>`;
   $("#new-product").onclick = () => productEditor();
   document
     .querySelectorAll("[data-edit]")
@@ -666,6 +763,15 @@ function inventoryPanel() {
             adminData.products.find((p) => p.id === +b.dataset.edit),
           )),
     );
+  document.querySelectorAll("[data-image]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        productEditor(
+          adminData.products.find((p) => p.id === +b.dataset.image),
+        );
+        $("#product-photo").focus();
+      }),
+  );
   document
     .querySelectorAll("[data-adjust]")
     .forEach(
@@ -676,7 +782,16 @@ function inventoryPanel() {
           )),
     );
 }
+let photoPreviewUrl = null;
+function clearPhotoPreview() {
+  if (photoPreviewUrl) {
+    URL.revokeObjectURL(photoPreviewUrl);
+    photoPreviewUrl = null;
+  }
+}
+$("#editor-dialog").addEventListener("close", clearPhotoPreview);
 function productEditor(p) {
+  clearPhotoPreview();
   const item = p || {
     name: "",
     variety: "",
@@ -686,40 +801,89 @@ function productEditor(p) {
     texture: "",
     cooking: "",
     active: 1,
+    image: "",
   };
+  let removePhoto = false;
   $("#editor-content").innerHTML =
-    `<form id="product-edit"><div class="form-grid"><label>Rice name<input name="name" value="${esc(item.name)}" maxlength="80" required></label><label>Short description<input name="variety" value="${esc(item.variety)}" maxlength="150"></label><label>Price per 25 kg sack (PHP)<input name="price" type="number" min="1" max="100000" value="${item.price}" required></label><label>Category<select name="tag">${["Premium", "Everyday", "Value", "Whole grain"].map((t) => `<option ${t === item.tag ? "selected" : ""}>${t}</option>`).join("")}</select></label><label class="wide">Product description<textarea name="description" maxlength="2000" required>${esc(item.description)}</textarea></label><label class="wide">Texture<textarea name="texture" maxlength="500">${esc(item.texture)}</textarea></label><label class="wide">Cooking notes<textarea name="cooking" maxlength="500">${esc(item.cooking)}</textarea></label>${p ? `<label class="wide">Product photo (PNG, JPG, WebP; max 2 MB)<input id="product-photo" type="file" accept="image/png,image/jpeg,image/webp"></label><label class="wide">Visibility<select name="active"><option value="true" ${item.active ? "selected" : ""}>Active</option><option value="false" ${!item.active ? "selected" : ""}>Archived</option></select></label>` : ""}</div><p class="form-note">Use supplier-confirmed rice information. New products start with zero stock; add a stock movement after saving. Edit a saved product to upload a supplier-authorized photo.</p><button class="primary checkout-button">Save product</button><p id="editor-error" role="alert"></p></form>`;
+    `<form id="product-edit"><section class="photo-editor"><div id="product-photo-preview">${item.image ? `<img src="${esc(item.image)}" alt="Current product photo">` : '<span class="photo-placeholder">↥<small>Add your rice product photo</small></span>'}</div><div><h3>Product image</h3><p class="form-note">Upload or replace a supplier-authorized photo. PNG, JPG, or WebP, up to 2 MB.</p><label class="upload-label">Choose product image<input id="product-photo" type="file" accept="image/png,image/jpeg,image/webp"></label><button type="button" id="remove-product-photo" class="small-button" ${item.image ? "" : "hidden"}>Remove image</button><p id="photo-selection-note" class="form-note">${item.image ? "Current photo is shown. Choose a file to replace it." : "No photo yet. A rice sack illustration will be used."}</p></div></section><div class="form-grid"><label>Rice name<input name="name" value="${esc(item.name)}" maxlength="80" required></label><label>Short description<input name="variety" value="${esc(item.variety)}" maxlength="150"></label><label>Price per 25 kg sack (PHP)<input name="price" type="number" min="1" max="100000" value="${item.price}" required></label><label>Category<select name="tag">${["Premium", "Everyday", "Value", "Whole grain"].map((t) => `<option ${t === item.tag ? "selected" : ""}>${t}</option>`).join("")}</select></label><label class="wide">Product description<textarea name="description" maxlength="2000" required>${esc(item.description)}</textarea></label><label class="wide">Texture<textarea name="texture" maxlength="500">${esc(item.texture)}</textarea></label><label class="wide">Cooking notes<textarea name="cooking" maxlength="500">${esc(item.cooking)}</textarea></label>${p ? `<label class="wide">Visibility<select name="active"><option value="true" ${item.active ? "selected" : ""}>Active</option><option value="false" ${!item.active ? "selected" : ""}>Archived</option></select></label>` : ""}</div><p class="form-note">All new products are 25 kg sacks and start with zero stock. Add a stock movement after saving.</p><button class="primary checkout-button" type="submit">Save product</button><p id="editor-error" role="alert"></p></form>`;
+  $("#product-photo").onchange = () => {
+    const file = $("#product-photo").files[0];
+    if (!file) return;
+    if (
+      file.size > 2000000 ||
+      !["image/png", "image/jpeg", "image/webp"].includes(file.type)
+    ) {
+      $("#editor-error").textContent = "Choose a PNG, JPG, or WebP under 2 MB.";
+      $("#product-photo").value = "";
+      return;
+    }
+    clearPhotoPreview();
+    photoPreviewUrl = URL.createObjectURL(file);
+    removePhoto = false;
+    $("#product-photo-preview").innerHTML =
+      `<img src="${esc(photoPreviewUrl)}" alt="Selected product photo preview">`;
+    $("#photo-selection-note").textContent = file.name + " · Ready to save";
+    $("#remove-product-photo").hidden = false;
+    $("#editor-error").textContent = "";
+  };
+  $("#remove-product-photo").onclick = () => {
+    clearPhotoPreview();
+    removePhoto = true;
+    $("#product-photo").value = "";
+    $("#product-photo-preview").innerHTML =
+      '<span class="photo-placeholder">↥<small>Rice sack illustration will be used</small></span>';
+    $("#photo-selection-note").textContent =
+      "Image will be removed when you save.";
+    $("#remove-product-photo").hidden = true;
+  };
   $("#product-edit").onsubmit = async (e) => {
     e.preventDefault();
+    const button = e.target.querySelector("button[type=submit]");
+    button.disabled = true;
+    $("#editor-error").textContent = "";
     const data = Object.fromEntries(new FormData(e.target));
     data.price = Number(data.price);
     if (p) {
       data.id = p.id;
-      data.active = data.active === "true";
+      data.active =
+        data.active === undefined
+          ? Boolean(p.active ?? true)
+          : data.active === "true";
     }
     try {
+      const file = $("#product-photo").files[0];
+      if (
+        file &&
+        (file.size > 2000000 ||
+          !["image/png", "image/jpeg", "image/webp"].includes(file.type))
+      )
+        throw Error("Choose a PNG, JPG, or WebP under 2 MB.");
+      const photo = file
+        ? await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () =>
+              reject(Error("Could not read the image. Choose the file again."));
+            reader.readAsDataURL(file);
+          })
+        : null;
       const saved = await post(
         "/api/admin/products",
         data,
         p ? "PATCH" : "POST",
       );
-      if (p && $("#product-photo")?.files[0]) {
-        const file = $("#product-photo").files[0];
-        if (file.size > 2000000)
-          throw Error("Product saved, but photo must be under 2 MB.");
-        const photo = await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        await post("/api/admin/image", { id: p.id, data: photo });
-      }
+      const id = p?.id || saved.id;
+      if (!p) p = { ...data, id, active: true };
+      if (photo) await post("/api/admin/image", { id, data: photo });
+      else if (p && removePhoto)
+        await post("/api/admin/image", { id, remove: true });
       $("#editor-dialog").close();
-      toast("Product saved");
+      toast("Product and image saved");
       await adminView("inventory");
     } catch (e) {
       $("#editor-error").textContent = e.message;
+    } finally {
+      button.disabled = false;
     }
   };
   show("#editor-dialog");
@@ -796,6 +960,7 @@ $("#admin-link").onclick = async () => {
   try {
     const s = await api("/api/session");
     isAdmin = s.admin;
+    accountLabel();
     await adminView("overview");
   } catch (e) {
     toast(e.message);
@@ -809,6 +974,7 @@ async function init() {
     config = c;
     accountLabel();
     await refresh();
+    if (location.pathname === "/admin") await adminView("overview");
   } catch (e) {
     $("#products").innerHTML =
       "<p>Could not load the store. Ensure the server is running, then refresh.</p>";

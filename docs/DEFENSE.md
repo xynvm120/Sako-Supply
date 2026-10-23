@@ -8,13 +8,13 @@ An individual project for a single bigasan selling 25 kg sacks. Two roles: custo
 
 ## Objectives and evidence
 
-| Objective | Feature | Demonstration |
-| --- | --- | --- |
-| Provide online wholesale rice ordering | Product details, 25 kg catalog, cart, authenticated checkout | Place an order for multiple sacks |
-| Maintain stock availability | Server-side stock checks and SQL transactions | Order reduces available stock; cancellation restores it once |
-| Help customers follow orders | Personal order history, timeline, sample delivery map | Admin dispatches; customer views simulation |
-| Maintain transaction documentation | Order-item snapshots and printable receipts | Print / Save as PDF, with payment status visible |
-| Support store monitoring | Admin dashboard, product management, customer list, sales reports | Adjust inventory with a reason and export completed sales |
+| Objective                              | Feature                                                           | Demonstration                                                |
+| -------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------ |
+| Provide online wholesale rice ordering | Product details, 25 kg catalog, cart, authenticated checkout      | Place an order for multiple sacks                            |
+| Maintain stock availability            | Server-side stock checks and SQL transactions                     | Order reduces available stock; cancellation restores it once |
+| Help customers follow orders           | Personal order history, timeline, sample delivery map             | Admin dispatches; customer views simulation                  |
+| Maintain transaction documentation     | Order-item snapshots and printable receipts                       | Print / Save as PDF, with payment status visible             |
+| Support store monitoring               | Admin dashboard, product management, customer list, sales reports | Adjust inventory with a reason and export completed sales    |
 
 ## Architecture
 
@@ -39,6 +39,10 @@ A deployed version requires HTTPS. The prototype's browser card fields never sen
 **What happens when an order is cancelled?** The order can only transition from an active state. Its stock is restored once, and a status event and stock movements are recorded. A successful simulated electronic payment becomes Demo refunded. Real refunds are outside scope.
 
 **Is this a payment gateway?** No. Card, GCash, and Maya screens demonstrate successful/failed checkout outcomes. No funds move, no wallet account is accessed, and no real card details should be entered.
+
+**Where is the admin login?** Open `/admin` directly. Guests see a sign-in form, not protected dashboard data. The Dashboard navigation entry appears only after successful admin authentication; customer accounts cannot access the admin API.
+
+**Why might an order have no map?** Store pickup has no delivery journey. Checkout requires a deliberate pickup/delivery choice. Delivery orders show the map immediately, and the demo truck starts after admin dispatch. Both order types poll status automatically.
 
 **Is the map live GPS?** No. It is an updating simulation of a fixed Koronadal route, clearly labeled in the interface. Real GPS and customer-address routing require additional services and driver participation.
 
