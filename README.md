@@ -1,28 +1,100 @@
 # Sako Supply
 
-A responsive, single-store bigasan e-commerce research prototype. Built with vanilla JavaScript, CSS, Node.js and SQLite. No external application dependencies.
+A full-stack, single-store rice wholesale research prototype: responsive HTML/CSS/JavaScript frontend, Node.js backend, and a persistent SQLite SQL database. Every active product is a **25 kg sack**. Customers can buy multiple sacks; no minimum count is imposed.
 
-## Run
+## Open on a Windows laptop
 
-Requires Node.js 22.13+ (Node 24 recommended).
+1. Install **Node.js 24 LTS** from https://nodejs.org.
+2. Download this repository using **Code → Download ZIP** and extract it.
+3. Open the extracted folder containing `package.json`.
+4. Click the File Explorer address bar, type `cmd`, and press Enter.
+5. Run these commands, one at a time:
 
 ```sh
+npm install
 npm start
 ```
 
-The application listens on port 3000. Override with `PORT`. SQLite data is stored in ignored `data/sako.sqlite`; override the directory with `DATA_DIR`. Orders and inventory survive server restarts. Admin sessions require a fresh login after restart.
+6. Keep the command window open and visit **http://localhost:3000** in Chrome or Edge.
 
-## Demonstration
+To stop the server, press Ctrl+C in that command window. To start again, run `npm start`. If port 3000 is busy, stop the older server first or run `set PORT=3001` in Windows Command Prompt before `npm start` and browse to port 3001.
 
-1. Browse and filter the rice catalog. Compare 5 kg and 25 kg bags.
-2. Add products to the bag and adjust quantities.
-3. Checkout using a sample name and phone number. Choose pickup (free) or local delivery (₱50). Save the order reference.
-4. Open **Store admin** and sign in with the local demo password `sako-demo-2026`.
-5. View the order, advance it through Pending → Preparing → Ready → Completed.
-6. Show reserved inventory and the completed sales summary. Cancelling an active order restores its stock once.
-7. Use Inventory to adjust available bags.
+**Updating a previous download:** stop the old server and back up the existing `data` folder. Extract the new ZIP to a separate folder, copy your `data` folder into it, then run `npm install` and `npm start`. Do not overwrite an existing database with an empty one. Old 5 kg listings are archived, while existing orders are preserved.
 
-Use fictional customer details during the defense. Products, pricing and availability are sample data. No orders are actually fulfilled. Delivery coverage is subject to store confirmation.
+## Customer capabilities
+
+- Register, sign in, sign out, and update name, phone, and default address.
+- Browse/search/filter/sort 25 kg rice products and read product details, texture, and cooking notes.
+- Add multiple sacks, set quantities, choose pickup or delivery, and place an order.
+- View only your own order history, status timeline, receipts, and simulated delivery route.
+- Print a receipt or choose **Save as PDF** from the browser print window.
+
+Use fictional contact information for the defense. Customer passwords are salted and hashed with scrypt. Customer and admin sessions are stored in the database, expire after 24 hours, and are revoked on logout.
+
+## Admin dashboard
+
+Click **Store admin**. The local demonstration password is **`sako-demo-2026`**. Set `ADMIN_PASSWORD` to replace it. Admin and customer sign-ins use separate roles, but switching roles in the same browser replaces the active session; use an incognito window or another browser for a simultaneous demo.
+
+- **Overview:** pending orders, low stock (10 or fewer sacks), available sacks, recent active orders, and today's completed order totals.
+- **Orders:** search by reference/name/phone, filter status, view details, print receipts, record cash collection, and progress orders.
+- **Products & inventory:** create/edit/archive products, upload product photos, and record positive or negative stock adjustments with reasons. New products start at zero stock. To upload a photo, save a new product and then edit it. Only supplier-authorized PNG/JPEG/WebP images under 2 MB are accepted.
+- **Customers:** search registered customers and view their order histories.
+- **Reports:** date-filtered completed sales, rice revenue excluding delivery, best sellers, and downloadable CSV.
+
+Order flow:
+
+- Delivery: Pending → Preparing → Out for delivery → Completed.
+- Pickup: Pending → Preparing → Ready for pickup → Completed.
+- Active orders can be cancelled. Stock is restored exactly once.
+
+Payment and order status are independent. Reports use order-placement dates in Philippine time and currently completed orders. They include demo electronic payments and can include unpaid completed cash orders; they are not collected-cash, tax, or profit reports.
+
+## Payment simulations — no real money
+
+Cash, card, GCash, and Maya appear at checkout. **All electronic payments are simulations.** No merchant accounts, payment gateways, wallet credentials, or real card processing are connected.
+
+Card fields are present for demonstration only. Use:
+
+| Test | Card number | Future expiry | Test CVC |
+| --- | --- | --- | --- |
+| Successful simulation | `4242 4242 4242 4242` | `12/30` | `123` |
+| Declined simulation | `4000 0000 0000 0002` | `12/30` | `123` |
+
+Never enter a real card. Card number, expiry, and CVC remain in browser-only fields and are not included in API requests or stored in the database. The backend rejects known raw-card fields. GCash and Maya show a selectable successful/declined demo outcome; no QR transfer or wallet login is requested.
+
+Failed demo payments create no order and reserve no stock. Successful simulations show **Demo paid**; cancellation changes that to **Demo refunded**, without moving funds. Cash orders remain **Unpaid** until an admin records collection. Printed documents are clearly labeled research-demo order acknowledgments/receipts, **not tax invoices or official receipts**.
+
+## Delivery simulation
+
+The delivery map uses Leaflet and OpenStreetMap tiles. It shows a sample route in Koronadal, not a geocoded customer address or actual rider GPS. After an admin selects **Out for delivery**, a simulated truck moves along the route over three minutes, stopping near the destination until completion. The client polls every five seconds while the details view is open. Pickup orders do not show delivery tracking.
+
+A sample **₱150 flat delivery fee** is calculated on the server. It is not a freight quote; real wholesale delivery pricing and coverage require store confirmation.
+
+Map tiles need Internet access to `tile.openstreetmap.org`; the route and coordinates remain available if tiles are blocked. Fonts optionally load from `fonts.googleapis.com` and `fonts.gstatic.com`, with local fallback fonts. No map API key is required.
+
+## Products and market descriptions
+
+The catalog includes Dinorado, Jasmine, Sinandomeng, well-milled white rice, and brown rice—rice retail names/types familiar in the Philippine market. They are **not all cultivars or commercial brands**. The illustrations are fictional Sako packaging. Do not interpret them as supplier-certified brands, Philippine-grown origin claims, current retailer stock, or verified commercial 25 kg offerings. Sample pricing and quantities are for research only. Verify the actual supplier's specifications, origin, price, packaging, availability, and image permissions before commercial use.
+
+## Database and architecture
+
+No XAMPP or separate database server is required. SQLite creates `data/sako.sqlite` on first startup. It is a SQL relational database, **not MySQL**, and is not managed through phpMyAdmin. Database setup lives in [db/schema.sql](db/schema.sql); backwards-compatible migrations are in `server.js`.
+
+Tables: `users`, `products`, `orders`, `order_items`, `sessions`, `stock_movements`, and `order_events`. Orders retain immutable product/price snapshots so catalog changes do not rewrite receipts. The old order JSON snapshot is retained solely for compatibility; the application uses normalized `order_items`.
+
+```mermaid
+erDiagram
+    users ||--o{ orders : places
+    users ||--o{ sessions : authenticates
+    orders ||--|{ order_items : contains
+    orders ||--o{ order_events : records
+    products ||--o{ order_items : purchased_as
+    products ||--o{ stock_movements : changes
+```
+
+Backend responsibilities: access control, server-calculated prices/fees, atomic stock reservation, order transitions, receipt data, and SQL persistence. Frontend responsibilities: interface, client-only test card form, print layout, and the demo map.
+
+Back up the complete `data` directory (database plus uploaded photos) while the server is stopped. Do not delete data to reset a demonstration without preserving existing orders. `DATA_DIR` can point to another database directory; `PORT` changes the server port.
 
 ## Validation
 
@@ -30,30 +102,30 @@ Use fictional customer details during the defense. Products, pricing and availab
 npm test
 ```
 
-The integration test uses an isolated temporary database and exercises checkout pricing, stock reservation, insufficient-stock rejection, duplicate-item rejection, authentication, order transitions, cancellation restoration, inventory updates and logout.
+Integration tests use isolated temporary databases and verify customer authentication/ownership, order pricing, stock, simulated payment success/failure, cancellation, status transitions, reports, images, migration, restart persistence, and logout.
 
-## Scope and limitations
+Optional browser tests:
 
-- One store and one administrator role. No customer accounts or public order history.
-- Cash on pickup/delivery only; no payment gateway or automatic payment verification.
-- Sales summary includes completed order totals, including delivery fees; it is not accounting or profit reporting.
-- Each package size has its own stock count. No loose rice or sack repacking conversion.
-- Rice package illustrations use CSS; no licensed product photography is bundled.
-- Google Fonts are optional; local fallback fonts work without Internet access.
+```sh
+npx playwright install chromium
+npm run test:browser
+```
 
-## Before a public deployment
+If you already have a Chromium installation, set `SAKO_CHROMIUM` to its executable path instead. Browser tests verify customer checkout, browser-only card fields, printable PDF layout, map movement, admin management/report export, and mobile layout. Test-only records never enter your regular database.
 
-Set a strong `ADMIN_PASSWORD` in the server environment; the documented fallback is for local demonstrations only. Add HTTPS with secure session cookies, login rate limiting, persistent/expiring sessions, customer privacy and retention controls, backups, and appropriate delivery/payment policies. This prototype has not undergone a production security review.
+## Suggested defense flow
 
-## Research alignment
+1. Explain the problem: bulk rice orders, manual stock checking, and order follow-up.
+2. Show the 25 kg catalog and product details. Add five sacks.
+3. Register a fictional customer; select delivery and simulate a card or wallet payment.
+4. Show the order reference, payment status, and printable receipt.
+5. In a second/incognito browser, sign in as admin, prepare the order, then dispatch it.
+6. Refresh the customer's order details and show the moving **simulated** map.
+7. Complete the order and show its report entry; export a CSV.
+8. Create a second order, cancel it, and show stock restoration and the inventory audit log.
 
-Suggested title: **Sako Supply: A Web-Based Rice Ordering and Inventory Management System**.
+Use the explanation and scope notes in [docs/DEFENSE.md](docs/DEFENSE.md). Do not present simulated payments/tracking as real integrations or invented product descriptions as verified supplier data.
 
-| Objective | Implemented module |
-| --- | --- |
-| Provide online product browsing and ordering | Catalog, search, filters, cart and checkout |
-| Track available rice stocks | Per-package inventory, stock reservation, cancellation restoration |
-| Help the owner monitor transactions | Authenticated order dashboard and status progression |
-| Summarize sales activity | Completed order sales and order count |
+## Before commercial deployment
 
-Architecture: browser → Node HTTP JSON API → SQLite database. Tables: products and orders (order items stored as an immutable JSON snapshot). The server calculates prices and validates stock; the browser cannot dictate order totals.
+This is a defense prototype. Real payments require a provider's hosted payment fields/checkout and server-verified webhooks; real delivery tracking requires consented driver GPS, real destinations, delivery access control, and operational arrangements. Also configure HTTPS, a strong admin password, backups, privacy/retention rules, email verification and account recovery, production monitoring, and secure payment/refund policies. No real payment should depend on a browser-supplied success flag.

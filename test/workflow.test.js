@@ -1,33 +1,686 @@
-import {test} from 'node:test';
-import assert from 'node:assert/strict';
-import {spawn} from 'node:child_process';
-import {mkdtempSync,rmSync} from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-test('checkout, inventory, authentication and order lifecycle',async()=>{
- const dir=mkdtempSync(path.join(os.tmpdir(),'sako-test-'));const port=32187;const child=spawn(process.execPath,['server.js'],{env:{...process.env,PORT:String(port),DATA_DIR:dir,ADMIN_PASSWORD:'test-password'},stdio:['ignore','pipe','pipe']});
- try{await new Promise((resolve,reject)=>{child.stdout.once('data',resolve);child.once('error',reject);child.once('exit',()=>reject(Error('Server exited')));});
- const call=async(url,method='GET',data,cookie)=>{const r=await fetch(`http://127.0.0.1:${port}${url}`,{method,headers:{'Content-Type':'application/json',...(cookie?{cookie}:{})},body:data?JSON.stringify(data):undefined});return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};};
- assert.equal((await fetch(`http://127.0.0.1:${port}/`)).status,200);
- const products=(await call('/api/products')).data;assert.equal(products.length,8);const p=products[0];
- assert.equal((await call('/api/admin/orders')).status,401);
- assert.equal((await call('/api/login','POST',{password:'wrong'})).status,401);
- const login=await call('/api/login','POST',{password:'test-password'});assert.equal(login.status,200);const cookie=login.cookie;
- const order={customer:'Test Customer',phone:'09123456789',method:'delivery',address:'Test local address',items:[{id:p.id,quantity:2}]};
- const placed=await call('/api/orders','POST',order);assert.equal(placed.status,201);assert.equal(placed.data.total,p.price*2+50);
- assert.equal((await call('/api/products')).data[0].stock,p.stock-2);
- assert.equal((await call('/api/orders','POST',{...order,items:[{id:p.id,quantity:999}]})).status,400);
- assert.equal((await call('/api/orders','POST',{...order,items:[{id:p.id,quantity:1},{id:p.id,quantity:1}]})).status,400);
- assert.equal((await call('/api/admin/status','PATCH',{id:placed.data.id,status:'Completed'},cookie)).status,400);
- assert.equal((await call('/api/admin/status','PATCH',{id:placed.data.id,status:'Cancelled'},cookie)).status,200);
- assert.equal((await call('/api/products')).data[0].stock,p.stock);
- assert.equal((await call('/api/admin/status','PATCH',{id:placed.data.id,status:'Cancelled'},cookie)).status,400);
- const second=await call('/api/orders','POST',{...order,method:'pickup'});assert.equal(second.data.total,p.price*2);
- for(const status of ['Preparing','Ready','Completed'])assert.equal((await call('/api/admin/status','PATCH',{id:second.data.id,status},cookie)).status,200);
- const orders=(await call('/api/admin/orders','GET',undefined,cookie)).data;assert.equal(orders.length,2);assert.equal(orders.find(o=>o.id===second.data.id).status,'Completed');
- assert.equal((await call('/api/admin/stock','PATCH',{id:p.id,stock:-1},cookie)).status,400);
- assert.equal((await call('/api/admin/stock','PATCH',{id:p.id,stock:30},cookie)).status,200);
- assert.equal((await call('/api/products')).data[0].stock,30);
- await call('/api/logout','POST',undefined,cookie);assert.equal((await call('/api/admin/orders','GET',undefined,cookie)).status,401);
- }finally{child.kill();await new Promise(r=>child.once('close',r));rmSync(dir,{recursive:true,force:true});}
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
+const root = process.cwd();
+async function start(dir, port) {
+  const child = spawn(process.execPath, ["server.js"], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PORT: String(port),
+      DATA_DIR: dir,
+      ADMIN_PASSWORD: "test-password",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  let errors = "";
+  child.stderr.on("data", (x) => (errors += x));
+  await new Promise((resolve, reject) => {
+    child.stdout.once("data", resolve);
+    child.once("error", reject);
+    child.once("exit", () => reject(Error("Server exited " + errors)));
+  });
+  return child;
+}
+async function stop(child) {
+  child.kill();
+  await new Promise((r) => child.once("close", r));
+}
+function client(port) {
+  return async (url, method = "GET", data, cookie) => {
+    const r = await fetch(`http://127.0.0.1:${port}${url}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(cookie ? { cookie } : {}),
+      },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    return {
+      status: r.status,
+      data: r.headers.get("content-type")?.includes("json")
+        ? await r.json()
+        : await r.text(),
+      cookie: r.headers.get("set-cookie")?.split(";")[0],
+    };
+  };
+}
+test("wholesale customer and admin workflow", async (t) => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "sako-test-"));
+  let child = await start(dir, 32187);
+  const call = client(32187);
+  let userCookie, adminCookie, otherCookie, product, orderId;
+  try {
+    await t.test(
+      "catalog uses only 25 kg Philippine-market rice types",
+      async () => {
+        const r = await call("/api/products");
+        assert.equal(r.status, 200);
+        assert.equal(r.data.length, 5);
+        assert.ok(
+          r.data.every((p) => p.weight === 25 && p.description.length > 30),
+        );
+        product = r.data[0];
+        assert.equal((await call("/")).status, 200);
+      },
+    );
+    await t.test("registration, password hashing and login", async () => {
+      const r = await call("/api/auth/register", "POST", {
+        name: "Test Buyer",
+        email: "buyer@example.test",
+        password: "safe-password-123",
+      });
+      assert.equal(r.status, 201);
+      userCookie = r.cookie;
+      assert.equal(r.data.user.password_hash, undefined);
+      assert.equal(
+        (
+          await call("/api/auth/register", "POST", {
+            name: "Other Buyer",
+            email: "other@example.test",
+            password: "other-password",
+          })
+        ).status,
+        201,
+      );
+      otherCookie = (
+        await call("/api/auth/login", "POST", {
+          email: "other@example.test",
+          password: "other-password",
+        })
+      ).cookie;
+      assert.equal(
+        (
+          await call("/api/auth/login", "POST", {
+            email: "buyer@example.test",
+            password: "incorrect",
+          })
+        ).status,
+        401,
+      );
+      assert.equal(
+        (
+          await call("/api/auth/register", "POST", {
+            name: "Test",
+            email: "buyer@example.test",
+            password: "safe-password-123",
+          })
+        ).status,
+        409,
+      );
+      assert.equal(
+        (await call("/api/admin/orders", "GET", undefined, userCookie)).status,
+        401,
+      );
+      assert.equal(
+        (await call("/api/login", "POST", { password: "wrong" })).status,
+        401,
+      );
+      adminCookie = (
+        await call("/api/login", "POST", { password: "test-password" })
+      ).cookie;
+      const inspect = new DatabaseSync(path.join(dir, "sako.sqlite"));
+      const user = inspect
+        .prepare("SELECT * FROM users WHERE email=?")
+        .get("buyer@example.test");
+      assert.notEqual(user.password_hash, "safe-password-123");
+      assert.equal(user.password_hash.length, 128);
+      inspect.close();
+    });
+    const order = () => ({
+      customer: "Test Buyer",
+      phone: "09123456789",
+      method: "delivery",
+      address: "Sample local address",
+      payment_method: "cash",
+      items: [{ id: product.id, quantity: 5 }],
+    });
+    await t.test(
+      "authorization and transactional checkout pricing",
+      async () => {
+        assert.equal((await call("/api/orders", "POST", order())).status, 401);
+        const r = await call(
+          "/api/orders",
+          "POST",
+          { ...order(), total: 1, price: 1 },
+          userCookie,
+        );
+        assert.equal(r.status, 201);
+        assert.equal(r.data.total, product.price * 5 + 150);
+        assert.equal(r.data.payment_status, "Unpaid");
+        orderId = r.data.id;
+        assert.equal(
+          (await call("/api/products")).data[0].stock,
+          product.stock - 5,
+        );
+        assert.equal(
+          (await call("/api/orders/" + orderId, "GET", undefined, otherCookie))
+            .status,
+          404,
+        );
+        assert.equal(
+          (
+            await call(
+              "/api/orders/" + orderId + "/tracking",
+              "GET",
+              undefined,
+              otherCookie,
+            )
+          ).status,
+          404,
+        );
+        assert.equal(
+          (await call("/api/orders", "GET", undefined, otherCookie)).data
+            .length,
+          0,
+        );
+        assert.equal(
+          (await call("/api/orders", "GET", undefined, userCookie)).data.length,
+          1,
+        );
+        assert.equal(
+          (
+            await call(
+              "/api/orders",
+              "POST",
+              { ...order(), items: [{ id: product.id, quantity: 999 }] },
+              userCookie,
+            )
+          ).status,
+          400,
+        );
+        assert.equal(
+          (
+            await call(
+              "/api/orders",
+              "POST",
+              {
+                ...order(),
+                items: [
+                  { id: product.id, quantity: 1 },
+                  { id: product.id, quantity: 1 },
+                ],
+              },
+              userCookie,
+            )
+          ).status,
+          400,
+        );
+      },
+    );
+    await t.test(
+      "card and wallet simulations reject raw card data and failed payments",
+      async () => {
+        const before = (await call("/api/products")).data[0].stock;
+        assert.equal(
+          (
+            await call(
+              "/api/orders",
+              "POST",
+              {
+                ...order(),
+                payment_method: "card",
+                cardNumber: "4242424242424242",
+                demo_result: "success",
+              },
+              userCookie,
+            )
+          ).status,
+          400,
+        );
+        for (const payment of ["card", "gcash", "maya"])
+          assert.equal(
+            (
+              await call(
+                "/api/orders",
+                "POST",
+                { ...order(), payment_method: payment, demo_result: "failure" },
+                userCookie,
+              )
+            ).status,
+            402,
+          );
+        assert.equal((await call("/api/products")).data[0].stock, before);
+        for (const payment of ["card", "gcash", "maya"]) {
+          const r = await call(
+            "/api/orders",
+            "POST",
+            {
+              ...order(),
+              payment_method: payment,
+              demo_result: "success",
+              items: [{ id: product.id, quantity: 1 }],
+            },
+            userCookie,
+          );
+          assert.equal(r.status, 201);
+          assert.equal(r.data.payment_status, "Demo paid");
+          assert.equal(
+            (
+              await call(
+                "/api/admin/status",
+                "PATCH",
+                { id: r.data.id, status: "Cancelled" },
+                adminCookie,
+              )
+            ).status,
+            200,
+          );
+          assert.equal(
+            (
+              await call(
+                "/api/orders/" + r.data.id,
+                "GET",
+                undefined,
+                userCookie,
+              )
+            ).data.payment_status,
+            "Demo refunded",
+          );
+        }
+        assert.equal((await call("/api/products")).data[0].stock, before);
+      },
+    );
+    await t.test(
+      "status transitions, payment collection and demo route",
+      async () => {
+        assert.equal(
+          (
+            await call(
+              "/api/admin/status",
+              "PATCH",
+              { id: orderId, status: "Completed" },
+              adminCookie,
+            )
+          ).status,
+          400,
+        );
+        for (const status of ["Preparing", "Out for delivery"])
+          assert.equal(
+            (
+              await call(
+                "/api/admin/status",
+                "PATCH",
+                { id: orderId, status },
+                adminCookie,
+              )
+            ).status,
+            200,
+          );
+        const track = (
+          await call(
+            "/api/orders/" + orderId + "/tracking",
+            "GET",
+            undefined,
+            userCookie,
+          )
+        ).data;
+        assert.equal(track.demo, true);
+        assert.equal(track.available, true);
+        assert.ok(track.route.length > 2);
+        assert.equal(
+          (
+            await call(
+              "/api/admin/payment",
+              "PATCH",
+              { id: orderId },
+              adminCookie,
+            )
+          ).status,
+          200,
+        );
+        assert.equal(
+          (
+            await call(
+              "/api/admin/status",
+              "PATCH",
+              { id: orderId, status: "Completed" },
+              adminCookie,
+            )
+          ).status,
+          200,
+        );
+        const completed = (
+          await call("/api/orders/" + orderId, "GET", undefined, userCookie)
+        ).data;
+        assert.equal(completed.events.length, 4);
+        assert.equal(completed.payment_status, "Paid");
+        assert.equal(
+          (
+            await call(
+              "/api/admin/status",
+              "PATCH",
+              { id: orderId, status: "Cancelled" },
+              adminCookie,
+            )
+          ).status,
+          400,
+        );
+        assert.equal(
+          (
+            await call(
+              "/api/orders/" + orderId + "/tracking",
+              "GET",
+              undefined,
+              userCookie,
+            )
+          ).data.progress,
+          1,
+        );
+      },
+    );
+    await t.test("cancelled pickup restores inventory once", async () => {
+      const before = (await call("/api/products")).data[0].stock;
+      const r = await call(
+        "/api/orders",
+        "POST",
+        { ...order(), method: "pickup" },
+        userCookie,
+      );
+      assert.equal(r.data.total, product.price * 5);
+      assert.equal(
+        (
+          await call(
+            "/api/admin/status",
+            "PATCH",
+            { id: r.data.id, status: "Preparing" },
+            adminCookie,
+          )
+        ).status,
+        200,
+      );
+      assert.equal(
+        (
+          await call(
+            "/api/admin/status",
+            "PATCH",
+            { id: r.data.id, status: "Out for delivery" },
+            adminCookie,
+          )
+        ).status,
+        400,
+      );
+      assert.equal(
+        (
+          await call(
+            "/api/admin/status",
+            "PATCH",
+            { id: r.data.id, status: "Cancelled" },
+            adminCookie,
+          )
+        ).status,
+        200,
+      );
+      assert.equal(
+        (
+          await call(
+            "/api/admin/status",
+            "PATCH",
+            { id: r.data.id, status: "Cancelled" },
+            adminCookie,
+          )
+        ).status,
+        400,
+      );
+      assert.equal((await call("/api/products")).data[0].stock, before);
+    });
+    await t.test(
+      "inventory audit trail, product management, reports and customer history",
+      async () => {
+        assert.equal(
+          (
+            await call(
+              "/api/admin/stock",
+              "PATCH",
+              { id: product.id, delta: 5 },
+              adminCookie,
+            )
+          ).status,
+          400,
+        );
+        assert.equal(
+          (
+            await call(
+              "/api/admin/stock",
+              "PATCH",
+              { id: product.id, delta: -10000, reason: "Bad adjustment" },
+              adminCookie,
+            )
+          ).status,
+          400,
+        );
+        assert.equal(
+          (
+            await call(
+              "/api/admin/stock",
+              "PATCH",
+              { id: product.id, delta: 20, reason: "Supplier delivery" },
+              adminCookie,
+            )
+          ).status,
+          200,
+        );
+        const data = (
+          await call("/api/admin/products", "GET", undefined, adminCookie)
+        ).data;
+        assert.equal(data.movements[0].reason, "Supplier delivery");
+        const draft = {
+          name: "Sample Philippine rice",
+          variety: "Sample",
+          price: 1200,
+          tag: "Everyday",
+          description: "Supplier-confirmed sample description",
+          texture: "Soft",
+          cooking: "Follow sack instructions",
+        };
+        const added = await call(
+          "/api/admin/products",
+          "POST",
+          draft,
+          adminCookie,
+        );
+        assert.equal(added.status, 201);
+        assert.equal(
+          (
+            await call(
+              "/api/admin/products",
+              "PATCH",
+              { ...draft, id: added.data.id, active: false },
+              adminCookie,
+            )
+          ).status,
+          200,
+        );
+        assert.equal((await call("/api/products")).data.length, 5);
+        const report = (
+          await call("/api/admin/reports", "GET", undefined, adminCookie)
+        ).data;
+        assert.equal(report.orders.length, 1);
+        assert.equal(report.total, product.price * 5 + 150);
+        assert.equal(report.bestSellers[0].sacks, 5);
+        const csv = await call(
+          "/api/admin/reports?format=csv",
+          "GET",
+          undefined,
+          adminCookie,
+        );
+        assert.ok(csv.data.includes(orderId));
+        assert.equal(
+          (
+            await call(
+              "/api/admin/reports?from=2026-12-31&to=2026-01-01",
+              "GET",
+              undefined,
+              adminCookie,
+            )
+          ).status,
+          400,
+        );
+        const customers = (
+          await call("/api/admin/customers", "GET", undefined, adminCookie)
+        ).data;
+        assert.equal(customers.length, 2);
+        assert.ok(
+          customers.find((c) => c.email === "buyer@example.test").order_count >
+            0,
+        );
+        assert.equal(
+          (await call("/api/admin/reports", "GET", undefined, userCookie))
+            .status,
+          401,
+        );
+      },
+    );
+    await t.test(
+      "product photos validate file content and require admin access",
+      async () => {
+        const png =
+          "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+j5ioAAAAASUVORK5CYII=";
+        assert.equal(
+          (
+            await call(
+              "/api/admin/image",
+              "POST",
+              { id: product.id, data: png },
+              userCookie,
+            )
+          ).status,
+          401,
+        );
+        assert.equal(
+          (
+            await call(
+              "/api/admin/image",
+              "POST",
+              { id: product.id, data: "data:image/png;base64,PHNjcmlwdD4=" },
+              adminCookie,
+            )
+          ).status,
+          400,
+        );
+        assert.equal(
+          (
+            await call(
+              "/api/admin/image",
+              "POST",
+              { id: product.id, data: png },
+              adminCookie,
+            )
+          ).status,
+          200,
+        );
+        const updated = (await call("/api/products")).data.find(
+          (p) => p.id === product.id,
+        );
+        assert.ok(updated.image.startsWith("/media/"));
+        assert.equal(
+          (await fetch("http://127.0.0.1:32187" + updated.image)).status,
+          200,
+        );
+        assert.equal(
+          (
+            await call(
+              "/api/admin/image",
+              "POST",
+              { id: product.id, remove: true },
+              adminCookie,
+            )
+          ).status,
+          200,
+        );
+      },
+    );
+    await t.test(
+      "sessions, account profile, and orders survive server restart; logout revokes access",
+      async () => {
+        assert.equal(
+          (
+            await call(
+              "/api/profile",
+              "PATCH",
+              {
+                name: "Buyer Updated",
+                phone: "09123456789",
+                address: "Saved address",
+              },
+              userCookie,
+            )
+          ).status,
+          200,
+        );
+        await stop(child);
+        child = await start(dir, 32187);
+        assert.equal(
+          (await call("/api/session", "GET", undefined, userCookie)).data.user
+            .name,
+          "Buyer Updated",
+        );
+        assert.equal(
+          (await call("/api/orders/" + orderId, "GET", undefined, userCookie))
+            .data.status,
+          "Completed",
+        );
+        await call("/api/logout", "POST", {}, userCookie);
+        assert.equal(
+          (await call("/api/orders", "GET", undefined, userCookie)).status,
+          401,
+        );
+        await call("/api/logout", "POST", {}, adminCookie);
+        assert.equal(
+          (await call("/api/admin/orders", "GET", undefined, adminCookie))
+            .status,
+          401,
+        );
+      },
+    );
+  } finally {
+    await stop(child);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("legacy database migration preserves historical five-kilogram orders", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "sako-legacy-"));
+  const legacy = new DatabaseSync(path.join(dir, "sako.sqlite"));
+  legacy.exec(
+    "CREATE TABLE products(id INTEGER PRIMARY KEY,name TEXT,variety TEXT,weight INTEGER,price INTEGER,stock INTEGER,tag TEXT); CREATE TABLE orders(id TEXT PRIMARY KEY,customer TEXT,phone TEXT,address TEXT,method TEXT,status TEXT,total INTEGER,created TEXT,items TEXT);",
+  );
+  legacy
+    .prepare("INSERT INTO products VALUES(1,?,?,?,?,?,?)")
+    .run("Dinorado", "Legacy product", 5, 310, 20, "Bestseller");
+  legacy
+    .prepare("INSERT INTO orders VALUES(?,?,?,?,?,?,?,?,?)")
+    .run(
+      "LEGACY",
+      "Old Customer",
+      "09123456789",
+      "",
+      "pickup",
+      "Completed",
+      310,
+      new Date().toISOString(),
+      JSON.stringify([
+        { id: 1, name: "Dinorado", weight: 5, price: 310, quantity: 1 },
+      ]),
+    );
+  legacy.close();
+  const child = await start(dir, 32188);
+  try {
+    const call = client(32188);
+    assert.ok((await call("/api/products")).data.every((p) => p.weight === 25));
+    const admin = (
+      await call("/api/login", "POST", { password: "test-password" })
+    ).cookie;
+    const orders = (await call("/api/admin/orders", "GET", undefined, admin))
+      .data;
+    assert.equal(orders[0].items[0].weight, 5);
+    assert.equal(orders[0].total, 310);
+  } finally {
+    await stop(child);
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

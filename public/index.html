@@ -1,1 +1,200 @@
-<!doctype html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Sako Supply · Good rice. Good days.</title><link rel="stylesheet" href="/style.css"></head><body><div class="announcement">From our bigasan to your hapag. <span>Fresh stocks, fair prices, always.</span></div><header><a class="brand" href="#">sako<span class="brand-dot">✳</span><small>SUPPLY</small></a><nav><a href="#shop" class="active">Shop rice</a><a href="#why">Our promise</a><button id="admin-link" class="text-button">Store admin ↗</button></nav><button id="cart-button" class="cart-button">Bag <span id="cart-count">0</span> ↗</button></header><main><section class="hero"><div class="hero-copy"><div class="eyebrow"><i></i> YOUR NEIGHBORHOOD BIGASAN, ONLINE</div><h1>Good rice.<br>Good <em>days.</em></h1><p>For everyday meals and extra cups.<br>Quality rice for your family, delivered with care.</p><a class="primary" href="#shop">Find your everyday rice <span>↗</span></a><div class="hero-notes"><span>✓ Quality you can taste</span><span>✓ Fair, honest prices</span></div></div><div class="hero-art"><div class="sun"></div><div class="art-label">A LITTLE GRAIN.<br>A LOT OF GOOD.</div><div class="rice-plant">✧</div><div class="hero-sack"><div class="seam"></div><div class="sack-brand">sako✳</div><div class="sack-rule"></div><span>PREMIUM QUALITY</span><h2>Dinorado</h2><div class="grain-icon">❧</div><small>PHILIPPINE RICE</small><b>25 kg</b></div><div class="round-stamp">FAMILY TABLE<br>✳<br>FAMILY FAVORITE</div><div class="art-caption">Grown with care. Shared with love.</div></div></section><section class="benefits" id="why"><div><b>♧</b><span><strong>Quality in every grain</strong><small>Carefully selected rice varieties</small></span></div><div><b>↗</b><span><strong>Your rice, your way</strong><small>Local delivery or store pickup</small></span></div><div><b>♡</b><span><strong>Made for the family</strong><small>From small packs to full sacks</small></span></div></section><section id="shop" class="shop"><div class="section-top"><div><div class="eyebrow">THE EVERYDAY ESSENTIAL</div><h2>Find your perfect grain<span>.</span></h2></div><p>A good meal starts with good rice.<br>Let’s find yours.</p></div><div class="shop-tools"><div class="filters" id="filters"><button class="selected" data-filter="all">All rice</button><button data-filter="Premium">Premium picks</button><button data-filter="Everyday">Everyday favorites</button><button data-filter="Whole grain">Whole grain</button></div><div class="search-sort"><input id="search" aria-label="Search rice" placeholder="Search rice…"><select id="sort" aria-label="Sort products"><option value="featured">Featured</option><option value="price">Price: low to high</option></select></div></div><div class="catalog-meta"><span id="result-count"></span><span>Prices per bag · Philippine peso (₱)</span></div><div id="products" class="products"><p>Loading fresh picks…</p></div></section><section class="bottom-banner"><div><div class="eyebrow">A FULL SACK. A HAPPY HOME.</div><h2>Something good is always cooking.</h2><p>Stock up on the rice your family loves.</p></div><a href="#shop">Shop the essentials ↗</a></section></main><footer><a class="brand" href="#">sako✳<small>SUPPLY</small></a><p>Your everyday rice, made simple.</p><span>Student research prototype · Sample products & prices</span></footer><dialog id="cart-dialog"><div class="dialog-header"><h2>Your rice bag</h2><button data-close aria-label="Close">×</button></div><div id="cart-content"></div></dialog><dialog id="admin-dialog"><div class="dialog-header"><h2>Store dashboard</h2><button data-close aria-label="Close">×</button></div><div id="admin-content"></div></dialog><div id="toast" role="status"></div><script type="module" src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sako Supply · Good rice. Good days.</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/leaflet.css" />
+  </head>
+  <body>
+    <div class="announcement">
+      From our bigasan to your hapag.
+      <span>Fresh stocks, fair prices, always.</span>
+    </div>
+    <header>
+      <a class="brand" href="#"
+        >sako<span class="brand-dot">✳</span><small>SUPPLY</small></a
+      >
+      <nav>
+        <a href="#shop" class="active">Shop rice</a
+        ><a href="#why">Our promise</a
+        ><button id="account-link" class="text-button">Sign in</button
+        ><button id="orders-link" class="text-button">My orders</button
+        ><button id="admin-link" class="text-button">Store admin →</button>
+      </nav>
+      <button id="cart-button" class="cart-button">
+        Bag <span id="cart-count">0</span> →
+      </button>
+    </header>
+    <main>
+      <section class="hero">
+        <div class="hero-copy">
+          <div class="eyebrow"><i></i> YOUR WHOLESALE BIGASAN, ONLINE</div>
+          <h1>Good rice.<br />Good <em>days.</em></h1>
+          <p>
+            For everyday meals and extra cups.<br />25 kg sacks for your home or
+            business, delivered with care.
+          </p>
+          <a class="primary" href="#shop"
+            >Find your everyday rice <span>→</span></a
+          >
+          <div class="hero-notes">
+            <span>✓ Quality you can taste</span
+            ><span>✓ Fair, honest prices</span>
+          </div>
+        </div>
+        <div class="hero-art">
+          <div class="sun"></div>
+          <div class="art-label">A LITTLE GRAIN.<br />A LOT OF GOOD.</div>
+          <div class="rice-plant">✧</div>
+          <div class="hero-sack">
+            <div class="seam"></div>
+            <div class="sack-brand">sako✳</div>
+            <div class="sack-rule"></div>
+            <span>PREMIUM QUALITY</span>
+            <h2>Dinorado</h2>
+            <div class="grain-icon">❧</div>
+            <small>WHOLESALE RICE</small><b>25 kg</b>
+          </div>
+          <div class="round-stamp">
+            FAMILY TABLE<br />✳<br />FAMILY FAVORITE
+          </div>
+          <div class="art-caption">Grown with care. Shared with love.</div>
+        </div>
+      </section>
+      <section class="benefits" id="why">
+        <div>
+          <b>♧</b
+          ><span
+            ><strong>Quality in every grain</strong
+            ><small>Carefully selected rice varieties</small></span
+          >
+        </div>
+        <div>
+          <b>→</b
+          ><span
+            ><strong>Your rice, your way</strong
+            ><small>Local delivery or store pickup</small></span
+          >
+        </div>
+        <div>
+          <b>♡</b
+          ><span
+            ><strong>Made for the family</strong
+            ><small>25 kg sacks, ready for bulk orders</small></span
+          >
+        </div>
+      </section>
+      <section id="shop" class="shop">
+        <div class="section-top">
+          <div>
+            <div class="eyebrow">THE EVERYDAY ESSENTIAL</div>
+            <h2>Find your perfect grain<span>.</span></h2>
+          </div>
+          <p>A good meal starts with good rice.<br />Let’s find yours.</p>
+        </div>
+        <div class="shop-tools">
+          <div class="filters" id="filters">
+            <button class="selected" data-filter="all">All rice</button
+            ><button data-filter="Premium">Premium picks</button
+            ><button data-filter="Everyday">Everyday favorites</button
+            ><button data-filter="Whole grain">Whole grain</button>
+          </div>
+          <div class="search-sort">
+            <input
+              id="search"
+              aria-label="Search rice"
+              placeholder="Search rice…"
+            /><select id="sort" aria-label="Sort products">
+              <option value="featured">Featured</option>
+              <option value="price">Price: low to high</option>
+              <option value="price-desc">Price: high to low</option>
+            </select>
+          </div>
+        </div>
+        <div class="catalog-meta">
+          <span id="result-count"></span
+          ><span>25 kg per sack · Philippine peso (₱)</span>
+        </div>
+        <div id="products" class="products"><p>Loading fresh picks…</p></div>
+      </section>
+      <section class="bottom-banner">
+        <div>
+          <div class="eyebrow">A FULL SACK. A HAPPY HOME.</div>
+          <h2>Something good is always cooking.</h2>
+          <p>Stock up on the rice your family loves.</p>
+        </div>
+        <a href="#shop">Shop the essentials →</a>
+      </section>
+    </main>
+    <footer>
+      <a class="brand" href="#">sako✳<small>SUPPLY</small></a>
+      <p>Your wholesale rice, made simple.</p>
+      <span
+        >Student research prototype · Demo payments & tracking · Sample
+        prices</span
+      >
+    </footer>
+    <dialog id="cart-dialog">
+      <div class="dialog-header">
+        <h2>Your rice bag</h2>
+        <button data-close aria-label="Close">×</button>
+      </div>
+      <div id="cart-content"></div>
+    </dialog>
+    <dialog id="admin-dialog">
+      <div class="dialog-header">
+        <h2>Store dashboard</h2>
+        <button data-close aria-label="Close">×</button>
+      </div>
+      <div id="admin-content"></div>
+    </dialog>
+    <dialog id="account-dialog">
+      <div class="dialog-header">
+        <h2 id="account-title">Welcome to Sako</h2>
+        <button data-close aria-label="Close">×</button>
+      </div>
+      <div id="account-content"></div>
+    </dialog>
+    <dialog id="product-dialog">
+      <div class="dialog-header">
+        <h2>Meet your next staple</h2>
+        <button data-close aria-label="Close">×</button>
+      </div>
+      <div id="product-content"></div>
+    </dialog>
+    <dialog id="orders-dialog">
+      <div class="dialog-header">
+        <h2>My orders</h2>
+        <button data-close aria-label="Close">×</button>
+      </div>
+      <div id="orders-content"></div>
+    </dialog>
+    <dialog id="detail-dialog">
+      <div class="dialog-header">
+        <h2>Order details</h2>
+        <button data-close aria-label="Close">×</button>
+      </div>
+      <div id="detail-content"></div>
+    </dialog>
+    <dialog id="editor-dialog">
+      <div class="dialog-header">
+        <h2>Product editor</h2>
+        <button data-close aria-label="Close">×</button>
+      </div>
+      <div id="editor-content"></div>
+    </dialog>
+    <dialog id="receipt-dialog">
+      <div class="dialog-header">
+        <h2>Order receipt</h2>
+        <button data-close aria-label="Close">×</button>
+      </div>
+      <div id="receipt-content"></div>
+      <button id="print-receipt" class="primary">Print / Save as PDF →</button>
+    </dialog>
+    <div id="toast" role="status"></div>
+    <script src="/leaflet.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
