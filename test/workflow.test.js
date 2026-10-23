@@ -1,0 +1,33 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {mkdtempSync,rmSync} from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+test('checkout, inventory, authentication and order lifecycle',async()=>{
+ const dir=mkdtempSync(path.join(os.tmpdir(),'sako-test-'));const port=32187;const child=spawn(process.execPath,['server.js'],{env:{...process.env,PORT:String(port),DATA_DIR:dir,ADMIN_PASSWORD:'test-password'},stdio:['ignore','pipe','pipe']});
+ try{await new Promise((resolve,reject)=>{child.stdout.once('data',resolve);child.once('error',reject);child.once('exit',()=>reject(Error('Server exited')));});
+ const call=async(url,method='GET',data,cookie)=>{const r=await fetch(`http://127.0.0.1:${port}${url}`,{method,headers:{'Content-Type':'application/json',...(cookie?{cookie}:{})},body:data?JSON.stringify(data):undefined});return {status:r.status,data:await r.json(),cookie:r.headers.get('set-cookie')?.split(';')[0]};};
+ assert.equal((await fetch(`http://127.0.0.1:${port}/`)).status,200);
+ const products=(await call('/api/products')).data;assert.equal(products.length,8);const p=products[0];
+ assert.equal((await call('/api/admin/orders')).status,401);
+ assert.equal((await call('/api/login','POST',{password:'wrong'})).status,401);
+ const login=await call('/api/login','POST',{password:'test-password'});assert.equal(login.status,200);const cookie=login.cookie;
+ const order={customer:'Test Customer',phone:'09123456789',method:'delivery',address:'Test local address',items:[{id:p.id,quantity:2}]};
+ const placed=await call('/api/orders','POST',order);assert.equal(placed.status,201);assert.equal(placed.data.total,p.price*2+50);
+ assert.equal((await call('/api/products')).data[0].stock,p.stock-2);
+ assert.equal((await call('/api/orders','POST',{...order,items:[{id:p.id,quantity:999}]})).status,400);
+ assert.equal((await call('/api/orders','POST',{...order,items:[{id:p.id,quantity:1},{id:p.id,quantity:1}]})).status,400);
+ assert.equal((await call('/api/admin/status','PATCH',{id:placed.data.id,status:'Completed'},cookie)).status,400);
+ assert.equal((await call('/api/admin/status','PATCH',{id:placed.data.id,status:'Cancelled'},cookie)).status,200);
+ assert.equal((await call('/api/products')).data[0].stock,p.stock);
+ assert.equal((await call('/api/admin/status','PATCH',{id:placed.data.id,status:'Cancelled'},cookie)).status,400);
+ const second=await call('/api/orders','POST',{...order,method:'pickup'});assert.equal(second.data.total,p.price*2);
+ for(const status of ['Preparing','Ready','Completed'])assert.equal((await call('/api/admin/status','PATCH',{id:second.data.id,status},cookie)).status,200);
+ const orders=(await call('/api/admin/orders','GET',undefined,cookie)).data;assert.equal(orders.length,2);assert.equal(orders.find(o=>o.id===second.data.id).status,'Completed');
+ assert.equal((await call('/api/admin/stock','PATCH',{id:p.id,stock:-1},cookie)).status,400);
+ assert.equal((await call('/api/admin/stock','PATCH',{id:p.id,stock:30},cookie)).status,200);
+ assert.equal((await call('/api/products')).data[0].stock,30);
+ await call('/api/logout','POST',undefined,cookie);assert.equal((await call('/api/admin/orders','GET',undefined,cookie)).status,401);
+ }finally{child.kill();await new Promise(r=>child.once('close',r));rmSync(dir,{recursive:true,force:true});}
+});
