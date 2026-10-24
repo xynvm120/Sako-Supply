@@ -1,4 +1,4 @@
--- SQLite schema. All prices are whole Philippine pesos; packages are 25 kg.
+-- SQLite base schema. db.js adds integer-centavo snapshots and additive migrations.
 PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS users (
  id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
  password_hash TEXT NOT NULL, salt TEXT NOT NULL, created TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS products (
- id INTEGER PRIMARY KEY, name TEXT, variety TEXT, weight INTEGER,
- price INTEGER, stock INTEGER, tag TEXT,
+ id INTEGER PRIMARY KEY, name TEXT NOT NULL, variety TEXT NOT NULL, weight INTEGER NOT NULL CHECK(weight > 0),
+ price INTEGER NOT NULL CHECK(price > 0), stock INTEGER NOT NULL CHECK(stock >= 0), tag TEXT NOT NULL,
  description TEXT NOT NULL DEFAULT '', texture TEXT NOT NULL DEFAULT '',
  cooking TEXT NOT NULL DEFAULT '', active INTEGER NOT NULL DEFAULT 1,
  image TEXT NOT NULL DEFAULT ''

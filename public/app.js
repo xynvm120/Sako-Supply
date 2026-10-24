@@ -107,6 +107,7 @@ function accountLabel() {
       : "Sign in";
   $("#admin-link").hidden = !isAdmin;
   $("#orders-link").hidden = !user;
+  $("#notifications-link").hidden = !user;
   $("#welcome-title").textContent = user
     ? `Fresh picks for you, ${user.name.split(" ")[0]}.`
     : "A little closer to the harvest.";
@@ -291,12 +292,36 @@ function authView(mode = "login") {
 }
 $("#account-link").onclick = () =>
   isAdmin ? adminView("overview") : authView();
+function previewPricing(items, method, zoneId) {
+  const count = items.reduce((n, p) => n + cart[p.id], 0),
+    tier = (config.bulkTiers || []).find((t) => count >= t.min_sacks);
+  const subtotal = items.reduce(
+    (n, p) => n + (p.price_centavos ?? Math.round(p.price * 100)) * cart[p.id],
+    0,
+  );
+  const discount = items.reduce(
+    (n, p) =>
+      n +
+      Math.min(
+        tier?.discount_centavos || 0,
+        Math.max(0, (p.price_centavos ?? Math.round(p.price * 100)) - 100),
+      ) *
+        cart[p.id],
+    0,
+  );
+  const fee =
+    method === "delivery"
+      ? (config.deliveryZones || []).find((z) => z.id === zoneId)
+          ?.fee_centavos || 0
+      : 0;
+  return { subtotal, discount, fee, total: subtotal - discount + fee };
+}
 function cartView() {
   const items = products.filter((p) => cart[p.id]);
   const sub = items.reduce((a, p) => a + p.price * cart[p.id], 0),
     count = items.reduce((a, p) => a + cart[p.id], 0);
   $("#cart-content").innerHTML = items.length
-    ? `<div class="demo-notice">DEFENSE DEMO · No real payments or deliveries</div>${items.map((p) => `<div class="cart-row"><div><b>${esc(p.name)} · 25 kg</b><small>${money(p.price)} per sack</small></div><div class="quantity"><button data-change="${p.id}" data-delta="-1" aria-label="Decrease quantity">−</button><input class="cart-qty" data-quantity="${p.id}" aria-label="Sacks of ${esc(p.name)}" type="number" min="1" max="${p.stock}" value="${cart[p.id]}"><button data-change="${p.id}" data-delta="1" aria-label="Increase quantity">+</button></div><b>${money(p.price * cart[p.id])}</b><button class="remove" data-remove="${p.id}" aria-label="Remove ${esc(p.name)}">×</button></div>`).join("")}<p class="form-note">${count} sacks · ${count * 25} kg total. Every listed package is a 25 kg sack.</p>${user ? `<form id="checkout"><h3>Where’s your next good meal?</h3><div class="form-grid"><label>Full name<input name="customer" value="${esc(user.name)}" autocomplete="name" required maxlength="150"></label><label>Mobile number<input name="phone" value="${esc(user.phone)}" type="tel" autocomplete="tel" placeholder="09XXXXXXXXX" required pattern="[+0-9 -]{10,16}"></label><label class="wide">Receive your order<select name="method" id="method" required><option value="" selected disabled>Choose delivery or pickup</option><option value="delivery">Local delivery + tracking · ${money(config.deliveryFee)} demo fee</option><option value="pickup">Store pickup · Free · No delivery map</option></select></label><div class="fulfillment-hint wide" id="fulfillment-hint">Choose <b>Local delivery</b> for a delivery map, or <b>Store pickup</b> to collect your sacks yourself.</div><label class="wide" id="address-label" hidden>Delivery address<textarea name="address" maxlength="500" autocomplete="street-address">${esc(user.address)}</textarea></label><label class="wide">Payment method<select name="payment_method" id="payment-method"><option value="cash">Cash on pickup / delivery</option><option value="card">Card · Simulation</option><option value="gcash">GCash · Simulation</option><option value="maya">Maya · Simulation</option></select></label></div><div id="payment-fields"></div><div class="total"><span>Total <small id="delivery-note"></small></span><b id="checkout-total">${money(sub)}</b></div><p class="form-note">Stock is reserved after a successful order. The ${money(config.deliveryFee)} flat delivery fee is a sample rate; delivery coverage and bulk freight pricing require store confirmation.</p><button class="primary checkout-button" type="submit">Place demo order →</button><p id="checkout-error" role="alert"></p></form>` : '<div class="empty"><h3>Keep your orders in one place.</h3><p>Sign in or create an account to check out.</p><button class="primary" id="checkout-signin">Sign in to order →</button></div>'}`
+    ? `<div class="demo-notice">DEFENSE DEMO · No real payments or deliveries</div>${items.map((p) => `<div class="cart-row"><div><b>${esc(p.name)} · 25 kg</b><small>${money(p.price)} per sack</small></div><div class="quantity"><button data-change="${p.id}" data-delta="-1" aria-label="Decrease quantity">−</button><input class="cart-qty" data-quantity="${p.id}" aria-label="Sacks of ${esc(p.name)}" type="number" min="1" max="${p.stock}" value="${cart[p.id]}"><button data-change="${p.id}" data-delta="1" aria-label="Increase quantity">+</button></div><b>${money(p.price * cart[p.id])}</b><button class="remove" data-remove="${p.id}" aria-label="Remove ${esc(p.name)}">×</button></div>`).join("")}<p class="form-note">${count} sacks · ${count * 25} kg total. Every listed package is a 25 kg sack.</p>${user ? `<form id="checkout"><h3>Where’s your next good meal?</h3><div class="form-grid"><label>Full name<input name="customer" value="${esc(user.name)}" autocomplete="name" required maxlength="150"></label><label>Mobile number<input name="phone" value="${esc(user.phone)}" type="tel" autocomplete="tel" placeholder="09XXXXXXXXX" required pattern="[+0-9 -]{10,16}"></label><label class="wide">Receive your order<select name="method" id="method" required><option value="" selected disabled>Choose delivery or pickup</option><option value="delivery">Local delivery + tracking · Fee by zone</option><option value="pickup">Store pickup · Free · No delivery map</option></select></label><div class="fulfillment-hint wide" id="fulfillment-hint">Choose <b>Local delivery</b> for a delivery map, or <b>Store pickup</b> to collect your sacks yourself.</div><label class="wide" id="zone-label" hidden>Delivery zone<select id="delivery-zone" name="delivery_zone" aria-label="Delivery zone">${(config.deliveryZones || []).map((z) => `<option value="${esc(z.id)}">${esc(z.name)} · ${money(z.fee_centavos / 100)}</option>`).join("")}</select></label><label class="wide" id="address-label" hidden>Delivery address<textarea name="address" maxlength="500" autocomplete="street-address">${esc(user.address)}</textarea></label><label class="wide">Payment method<select name="payment_method" id="payment-method"><option value="cash">Cash on pickup / delivery</option><option value="card">Card · Simulation</option><option value="gcash">GCash · Simulation</option><option value="maya">Maya · Simulation</option></select></label></div><div id="payment-fields"></div><div class="bulk-offer">Wholesale savings: 10+ sacks → ₱25 off each; 25+ sacks → ₱50 off each. Sample tiers; all rice types can be combined.</div><p id="cart-discount" class="form-note"></p><div class="total"><span>Total <small id="delivery-note"></small></span><b id="checkout-total">${money(sub)}</b></div><p class="form-note">Stock is reserved after a successful order. Zone fees and bulk discounts are sample rates; final coverage requires store confirmation.</p><button class="primary checkout-button" type="submit">Place demo order →</button><p id="checkout-error" role="alert"></p></form>` : '<div class="empty"><h3>Keep your orders in one place.</h3><p>Sign in or create an account to check out.</p><button class="primary" id="checkout-signin">Sign in to order →</button></div>'}`
     : '<div class="empty"><h3>Your bag is waiting for something good.</h3><p>Add your favorite 25 kg sacks to get started.</p><button class="primary" id="continue-shopping">Explore the rice collection →</button></div>';
   if (!items.length) {
     $("#continue-shopping").onclick = () => $("#cart-dialog").close();
@@ -306,18 +331,30 @@ function cartView() {
     $("#checkout-signin").onclick = () => authView();
     return;
   }
-  $("#method").onchange = () => {
-    const d = $("#method").value === "delivery";
-    $("#address-label").hidden = !d;
-    $("#address-label textarea").required = d;
-    $("#checkout-total").textContent = money(
-      sub + (d ? config.deliveryFee : 0),
+  const updateQuote = () => {
+    const delivery = $("#method").value === "delivery";
+    $("#zone-label").hidden = !delivery;
+    $("#address-label").hidden = !delivery;
+    $("#address-label textarea").required = delivery;
+    const quote = previewPricing(
+      items,
+      $("#method").value,
+      $("#delivery-zone").value,
     );
-    $("#delivery-note").textContent = d ? "(delivery included)" : "";
-    $("#fulfillment-hint").textContent = d
-      ? "Delivery selected: your map appears immediately; the demo truck moves after the admin dispatches your order."
-      : "Pickup selected: collect your sacks from the store. There is no delivery journey to track.";
+    $("#checkout-total").textContent = money(quote.total / 100);
+    $("#cart-discount").textContent = quote.discount
+      ? `Bulk savings: ${money(quote.discount / 100)} off ${money(quote.subtotal / 100)} rice subtotal.`
+      : "Add 10 sacks to unlock the first bulk discount.";
+    $("#delivery-note").textContent = delivery
+      ? `(includes ${money(quote.fee / 100)} delivery)`
+      : "";
+    $("#fulfillment-hint").textContent = delivery
+      ? "Delivery selected: choose your zone. Your illustrated demo map appears immediately; the truck moves after admin dispatch."
+      : "Choose delivery for tracking, or pickup to collect your sacks yourself.";
   };
+  $("#method").onchange = updateQuote;
+  $("#delivery-zone").onchange = updateQuote;
+  updateQuote();
   $("#payment-method").onchange = paymentFields;
   $("#checkout").onsubmit = async (e) => {
     e.preventDefault();
@@ -427,7 +464,7 @@ async function myOrders() {
       ? orders
           .map(
             (o) =>
-              `<article class="order"><div class="section-line"><h3>${esc(o.id)}</h3>${badge(o.status)}</div><p>${date(o.created)} · ${o.items.reduce((n, i) => n + i.quantity, 0)} sacks · ${money(o.total)}</p><p>${esc(paymentName(o.payment_method))} · ${badge(o.payment_status)}</p><div class="action-row"><button class="secondary" data-order="${o.id}">Details & tracking</button><button class="secondary" data-receipt="${o.id}">Receipt / Print</button></div></article>`,
+              `<article class="order"><div class="section-line"><h3>${esc(o.id)}</h3>${badge(o.status)}</div><p>${date(o.created)} · ${o.items.reduce((n, i) => n + i.quantity, 0)} sacks · ${money(o.total)}</p><p>${esc(paymentName(o.payment_method))} · ${badge(o.payment_status)}</p><div class="action-row"><button class="secondary" data-order="${o.id}">Details & tracking</button><button class="secondary" data-receipt="${o.id}">Receipt / Print</button><button class="secondary" data-reorder="${o.id}">Reorder</button>${o.status === "Pending" ? `<button class="secondary" data-cancel="${o.id}">Cancel order</button>` : ""}</div></article>`,
           )
           .join("")
       : '<div class="empty"><h3>No orders yet.</h3><p>Your 25 kg essentials are waiting in the shop.</p></div>';
@@ -439,13 +476,48 @@ $("#orders-link").onclick = myOrders;
 $("#orders-content").onclick = (e) => {
   if (e.target.dataset.order) orderView(e.target.dataset.order);
   if (e.target.dataset.receipt) receiptView(e.target.dataset.receipt);
+  if (e.target.dataset.reorder) reorder(e.target.dataset.reorder);
+  if (e.target.dataset.cancel) cancelMine(e.target.dataset.cancel);
 };
+async function reorder(id) {
+  try {
+    await refresh();
+    const o = await api("/api/orders/" + encodeURIComponent(id));
+    for (const i of o.items) {
+      const p = products.find((p) => p.id === i.id);
+      if (!p || p.stock < (cart[i.id] || 0) + i.quantity)
+        throw Error(
+          "Some items cannot be repeated with current stock. Review the catalog.",
+        );
+    }
+    for (const i of o.items) cart[i.id] = (cart[i.id] || 0) + i.quantity;
+    save();
+    cartView();
+    show("#cart-dialog");
+    toast("Added to bag. Current prices and discounts apply.");
+  } catch (e) {
+    toast(e.message);
+  }
+}
+async function cancelMine(id) {
+  if (!confirm("Cancel this Pending order and restore its reserved stock?"))
+    return;
+  try {
+    await post("/api/orders/" + encodeURIComponent(id) + "/cancel", {});
+    await refresh();
+    await myOrders();
+    toast("Order cancelled. Stock restored.");
+  } catch (e) {
+    toast(e.message);
+  }
+}
+
 async function receiptView(id) {
   try {
     const o = await api("/api/orders/" + encodeURIComponent(id)),
       sub = o.items.reduce((n, i) => n + i.quantity * i.price, 0);
     $("#receipt-content").innerHTML =
-      `<article class="receipt"><div class="receipt-brand">sako✳ <small>SUPPLY</small></div><div class="demo-notice">RESEARCH DEMO · NOT A TAX INVOICE / OFFICIAL RECEIPT</div><h2>${o.payment_status === "Unpaid" ? "Order acknowledgment" : "Demo order receipt"}</h2><p><b>${esc(o.id)}</b><br>${date(o.created)} (Philippine time)</p><div class="receipt-meta"><p><b>Customer</b><br>${esc(o.customer)}<br>${esc(o.phone)}</p><p><b>${o.method === "pickup" ? "Store pickup" : "Delivery"}</b><br>${o.method === "delivery" ? esc(o.address) : "Pickup details to be confirmed by store"}</p></div><table><thead><tr><th>Rice</th><th>Sacks</th><th>Unit price</th><th>Amount</th></tr></thead><tbody>${o.items.map((i) => `<tr><td>${esc(i.name)} · ${i.weight} kg</td><td>${i.quantity}</td><td>${money(i.price)}</td><td>${money(i.price * i.quantity)}</td></tr>`).join("")}</tbody></table><div class="receipt-totals"><p><span>Subtotal</span><b>${money(sub)}</b></p><p><span>Delivery fee</span><b>${money(o.delivery_fee)}</b></p><p class="grand"><span>Total</span><b>${money(o.total)}</b></p></div><p>Payment: ${esc(paymentName(o.payment_method))}<br>Status: <b>${esc(o.payment_status)}</b><br>Order: ${esc(o.status)}</p><p class="form-note">${o.payment_status === "Unpaid" ? "This acknowledges an order, not receipt of payment. " : ""}No actual electronic payment was processed. No VAT or tax computation is represented. Sample prices only. Thank you for supporting your local bigasan.</p></article>`;
+      `<article class="receipt"><div class="receipt-brand">sako✳ <small>SUPPLY</small></div><div class="demo-notice">RESEARCH DEMO · NOT A TAX INVOICE / OFFICIAL RECEIPT</div><h2>${o.payment_status === "Unpaid" ? "Order acknowledgment" : "Demo order receipt"}</h2><p><b>${esc(o.id)}</b><br>${date(o.created)} (Philippine time)</p><div class="receipt-meta"><p><b>Customer</b><br>${esc(o.customer)}<br>${esc(o.phone)}</p><p><b>${o.method === "pickup" ? "Store pickup" : "Delivery"}</b><br>${o.method === "delivery" ? esc(o.address) : "Pickup details to be confirmed by store"}</p></div><table><thead><tr><th>Rice</th><th>Sacks</th><th>Unit price${o.discount_centavos ? " (base)" : ""}</th><th>Amount</th></tr></thead><tbody>${o.items.map((i) => `<tr><td>${esc(i.name)} · ${i.weight} kg</td><td>${i.quantity}</td><td>${money((i.original_price_centavos ?? Math.round(i.price * 100)) / 100)}</td><td>${money(((i.original_price_centavos ?? Math.round(i.price * 100)) * i.quantity) / 100)}</td></tr>`).join("")}</tbody></table><div class="receipt-totals"><p><span>Subtotal</span><b>${money((o.subtotal_centavos ?? Math.round(sub * 100)) / 100)}</b></p>${o.discount_centavos ? `<p><span>Bulk discount</span><b>−${money(o.discount_centavos / 100)}</b></p>` : ""}<p><span>Delivery fee</span><b>${money(o.delivery_fee)}</b></p><p class="grand"><span>Total</span><b>${money(o.total)}</b></p></div><p>Payment: ${esc(paymentName(o.payment_method))}<br>Status: <b>${esc(o.payment_status)}</b><br>Order: ${esc(o.status)}</p><p class="form-note">${o.payment_status === "Unpaid" ? "This acknowledges an order, not receipt of payment. " : ""}No actual electronic payment was processed. No VAT or tax computation is represented. Sample prices only. Thank you for supporting your local bigasan.</p></article>`;
     show("#receipt-dialog");
   } catch (e) {
     toast(e.message);
@@ -478,7 +550,7 @@ async function orderView(id) {
     const delivery = o.method === "delivery";
     $("#detail-content").innerHTML = `
       <div class="order-summary"><div><span class="eyebrow">${delivery ? "YOUR DELIVERY" : "YOUR STORE PICKUP"}</span><h3>${esc(o.id)}</h3><p>${esc(o.customer)} · ${esc(o.phone)}</p></div><div><span id="live-order-status">${badge(o.status)}</span><p class="order-summary-total">${money(o.total)}</p></div></div>
-      ${delivery ? `<section class="tracking-card"><div class="section-line"><div><h3>Your delivery map</h3><p class="form-note">Sample Koronadal route · Simulation, not driver GPS</p></div><span class="live-pill"><i></i> Updates every 5s</span></div><div class="demo-notice">SIMULATED TRACKING · NOT LIVE DRIVER GPS</div><div id="delivery-map" aria-label="Simulated delivery route map"></div><div class="map-legend"><span>● Demo store</span><span>● Demo destination</span><span id="map-background-label">Illustrated fallback if street tiles are unavailable</span></div><div class="delivery-progress"><div><i id="delivery-progress-bar"></i></div><b id="delivery-progress-number">0%</b></div><p id="tracking-label" role="status">Loading delivery position…</p><p id="map-tile-note" class="form-note" hidden>Street tiles are unavailable. Showing an illustrated demo area with the updating route.</p><p class="form-note">Destination below is your entered address; this fixed demonstration map does not route to it. Movement begins when the admin selects Out for delivery.</p></section>` : `<section class="pickup-card"><div class="pickup-icon">↗</div><div><h3>You chose store pickup</h3><p>You’ll collect your sacks from the store. Pickup orders do not have a delivery map.</p><p class="form-note">Status updates automatically. The store will contact you when your order is ready.</p></div></section>`}
+      ${delivery ? `<section class="tracking-card"><div class="section-line"><div><h3>Your delivery map</h3><p class="form-note">Illustrated sample route · Simulation, not driver GPS</p></div><span class="live-pill"><i></i> Updates every 5s</span></div><div class="demo-notice">SIMULATED TRACKING · NOT LIVE DRIVER GPS</div><div id="delivery-map" aria-label="Simulated delivery route map"></div><div class="map-legend"><span>● Demo store</span><span>● Demo destination</span><span id="map-background-label">Local illustrated map · No external tile access</span></div><div class="delivery-progress"><div><i id="delivery-progress-bar"></i></div><b id="delivery-progress-number">0%</b></div><p id="tracking-label" role="status">Loading delivery position…</p><p id="map-tile-note" class="form-note">This illustrated demo map loads locally. No street-tile service is contacted.</p><p class="form-note">Destination below is your entered address; this fixed demonstration map does not route to it. Movement begins when the admin selects Out for delivery.</p></section>` : `<section class="pickup-card"><div class="pickup-icon">↗</div><div><h3>You chose store pickup</h3><p>You’ll collect your sacks from the store. Pickup orders do not have a delivery map.</p><p class="form-note">Status updates automatically. The store will contact you when your order is ready.</p></div></section>`}
       <div class="order-info-grid"><section><h3>${delivery ? "Delivery address" : "Collection"}</h3><p>${delivery ? esc(o.address) : "Store pickup · Collection details to be confirmed"}</p><h3>Payment</h3><p>${esc(paymentName(o.payment_method))} · <span id="live-payment-status">${badge(o.payment_status)}</span></p><h3>Your sacks</h3><ul class="order-items">${o.items.map((i) => `<li><span>${i.quantity} × ${esc(i.name)} · ${i.weight} kg</span><b>${money(i.price * i.quantity)}</b></li>`).join("")}</ul></section><section><h3>Order timeline</h3><ol id="live-timeline" class="timeline"></ol><p class="form-note" id="order-last-updated"></p></section></div><div class="action-row"><button class="primary" id="detail-receipt">Print receipt</button><button class="secondary" id="refresh-order">Refresh status</button></div>`;
     $("#detail-receipt").onclick = () => receiptView(o.id);
     $("#refresh-order").onclick = () => orderView(o.id);
@@ -533,20 +605,12 @@ async function orderView(id) {
           ],
           { pane: "offlineBasemap", interactive: false },
         ).addTo(map);
-        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          attribution:
-            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-          maxZoom: 19,
-        })
-          .on("tileerror", () => {
-            if ($("#map-tile-note")) $("#map-tile-note").hidden = false;
-          })
-          .on("tileload", () => {
-            if ($("#map-background-label"))
-              $("#map-background-label").textContent =
-                "OpenStreetMap street tiles";
-          })
-          .addTo(map);
+        map.attributionControl.setPrefix(false);
+        map.attributionControl.addAttribution(
+          "Sako illustrated demo · Not a navigation map",
+        );
+        $("#map-background-label").textContent =
+          "Local illustrated map · Works without street tile access";
         L.polyline(tracking.route, {
           color: "#246346",
           weight: 5,
@@ -641,6 +705,7 @@ async function adminView(tab = adminTab) {
         ["inventory", "Products & inventory"],
         ["customers", "Customers"],
         ["reports", "Reports"],
+        ["audit", "Admin audit"],
       ]
         .map(
           ([key, label]) =>
@@ -669,6 +734,7 @@ async function adminView(tab = adminTab) {
     if (tab === "inventory") inventoryPanel();
     if (tab === "customers") await customersPanel();
     if (tab === "reports") await reportsPanel();
+    if (tab === "audit") await auditPanel();
   } catch (e) {
     $("#admin-content").textContent = e.message;
   }
@@ -692,18 +758,47 @@ function stats() {
         }).format(new Date(o.created)) === today,
     )
     .reduce((s, o) => s + o.total, 0);
-  return `<div class="admin-stats"><div>Today’s completed orders*<b>${money(todayTotal)}</b></div><div>Pending orders<b>${adminOrders.filter((o) => o.status === "Pending").length}</b></div><div>Low stock (≤10 sacks)<b>${products.filter((p) => p.stock <= 10).length}</b></div><div>Available sacks<b>${products.reduce((s, p) => s + p.stock, 0)}</b></div></div><p class="form-note">*Orders placed today (Philippine time) and currently completed. Includes delivery fees and demo payments; not a collection or profit report.</p>`;
+  return `<div class="admin-stats"><div>Today’s completed orders*<b>${money(todayTotal)}</b></div><div>Pending orders<b>${adminOrders.filter((o) => o.status === "Pending").length}</b></div><div>At / below reorder point<b>${products.filter((p) => p.stock <= p.reorder_point).length}</b></div><div>Available sacks<b>${products.reduce((s, p) => s + p.stock, 0)}</b></div></div><p class="form-note">*Orders placed today (Philippine time) and currently completed. Includes delivery fees and demo payments; not a collection or profit report.</p>`;
 }
-function overview() {
+async function overview() {
   $("#admin-panel").innerHTML =
-    `<div class="section-line"><h2>A good day to do business.</h2><span class="badge">Demo store</span></div>${stats()}<h3>Orders needing attention</h3>${orderTable(adminOrders.filter((o) => !["Completed", "Cancelled"].includes(o.status)).slice(0, 5))}<h3>Low stock</h3>${
+    `<div class="section-line"><h2>A good day to do business.</h2><span class="badge">Demo store</span></div>${stats()}<div id="sales-charts"><p class="form-note">Loading sales charts…</p></div><h3>Orders needing attention</h3>${orderTable(adminOrders.filter((o) => !["Completed", "Cancelled"].includes(o.status)).slice(0, 5))}<h3>Low stock</h3>${
       products
-        .filter((p) => p.stock <= 10)
+        .filter((p) => p.stock <= p.reorder_point)
         .map((p) => `<p>${esc(p.name)} — ${p.stock} sacks remaining</p>`)
         .join("") ||
-      '<p class="form-note">All active rice products have more than 10 sacks available.</p>'
+      '<p class="form-note">All active products are above their configured reorder points.</p>'
     }`;
   bindOrderActions();
+  try {
+    const metrics = await api("/api/admin/metrics");
+    if ($("#sales-charts"))
+      $("#sales-charts").innerHTML = salesCharts(metrics.daily);
+  } catch (e) {
+    if ($("#sales-charts")) $("#sales-charts").textContent = e.message;
+  }
+}
+function salesCharts(rows) {
+  const day = (offset) =>
+      new Date(Date.now() + 8 * 3600000 - offset * 86400000)
+        .toISOString()
+        .slice(0, 10),
+    amount = (d) => (rows.find((r) => r.day === d)?.cents || 0) / 100;
+  const daily = Array.from({ length: 7 }, (_, i) => ({
+    label: day(6 - i).slice(5),
+    value: amount(day(6 - i)),
+  }));
+  const weekly = Array.from({ length: 4 }, (_, i) => ({
+    label: "Week " + (i + 1),
+    value: Array.from({ length: 7 }, (_, j) =>
+      amount(day((3 - i) * 7 + j)),
+    ).reduce((a, b) => a + b, 0),
+  }));
+  const chart = (title, data) => {
+    const max = Math.max(1, ...data.map((d) => d.value));
+    return `<section class="sales-chart"><h3>${title}</h3><p class="form-note">Completed-order totals, including demo payments and delivery.</p><div class="sales-bars" role="img" aria-label="${title}; exact values in the table below">${data.map((d) => `<div><span>${money(d.value)}</span><i style="height:${Math.max(2, (d.value / max) * 110)}px"></i><small>${d.label}</small></div>`).join("")}</div><details><summary>View chart data</summary><table class="admin-table"><tbody>${data.map((d) => `<tr><td>${d.label}</td><td>${money(d.value)}</td></tr>`).join("")}</tbody></table></details></section>`;
+  };
+  return `<div class="chart-grid">${chart("Daily sales · last 7 days", daily)}${chart("Weekly sales · last 28 days", weekly)}</div>`;
 }
 function orderTable(list) {
   return list.length
@@ -778,7 +873,7 @@ function ordersPanel(customerId) {
 }
 function inventoryPanel() {
   $("#admin-panel").innerHTML =
-    `<div class="section-line"><h2>Products & inventory</h2><button class="primary" id="new-product">+ Add product</button></div><p class="form-note">All new products are 25 kg sacks. Stock adjustments require a reason. Historical 5 kg products remain archived.</p><div class="table-scroll"><table class="admin-table"><thead><tr><th>Rice product</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody>${adminData.products.map((p) => `<tr><td><div class="inventory-product">${imageFor(p) ? `<img src="${esc(imageFor(p))}" alt="${esc(p.name)}">` : '<span class="inventory-placeholder">25<small>kg</small></span>'}<div><b>${esc(p.name)}</b><small>${p.weight} kg · ${p.active ? "Active" : "Archived"}</small></div></div></td><td>${money(p.price)}</td><td>${p.stock} sacks</td><td><button class="small-button" data-edit="${p.id}">Edit</button><button class="small-button" data-image="${p.id}">Change image</button><button class="small-button" data-adjust="${p.id}">Adjust stock</button></td></tr>`).join("")}</tbody></table></div><h3>Recent stock movements</h3><div class="table-scroll"><table class="admin-table"><thead><tr><th>Product</th><th>Change</th><th>Reason</th><th>Date</th></tr></thead><tbody>${adminData.movements.map((m) => `<tr><td>${esc(m.name)}</td><td>${m.delta > 0 ? "+" : ""}${m.delta}</td><td>${esc(m.reason)}</td><td>${date(m.created)}</td></tr>`).join("") || '<tr><td colspan="4">No adjustments recorded yet.</td></tr>'}</tbody></table></div>`;
+    `<div class="section-line"><h2>Products & inventory</h2><button class="primary" id="new-product">+ Add product</button></div><p class="form-note">All new products are 25 kg sacks. Stock adjustments require a reason. Historical 5 kg products remain archived.</p><div class="table-scroll"><table class="admin-table"><thead><tr><th>Rice product</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody>${adminData.products.map((p) => `<tr><td><div class="inventory-product">${imageFor(p) ? `<img src="${esc(imageFor(p))}" alt="${esc(p.name)}">` : '<span class="inventory-placeholder">25<small>kg</small></span>'}<div><b>${esc(p.name)}</b><small>${p.weight} kg · ${p.active ? "Active" : "Archived"}</small></div></div></td><td>${money(p.price)}</td><td>${p.stock} sacks<small>Reorder point: ${p.reorder_point}</small></td><td><button class="small-button" data-edit="${p.id}">Edit</button><button class="small-button" data-image="${p.id}">Change image</button><button class="small-button" data-adjust="${p.id}">Adjust stock</button><button class="small-button" data-alert="${p.id}">Stock alert</button></td></tr>`).join("")}</tbody></table></div><h3>Recent stock movements</h3><div class="table-scroll"><table class="admin-table"><thead><tr><th>Product</th><th>Change</th><th>Reason</th><th>Date</th></tr></thead><tbody>${adminData.movements.map((m) => `<tr><td>${esc(m.name)}</td><td>${m.delta > 0 ? "+" : ""}${m.delta}</td><td>${esc(m.reason)}</td><td>${date(m.created)}</td></tr>`).join("") || '<tr><td colspan="4">No adjustments recorded yet.</td></tr>'}</tbody></table></div>`;
   $("#new-product").onclick = () => productEditor();
   document
     .querySelectorAll("[data-edit]")
@@ -796,6 +891,36 @@ function inventoryPanel() {
           adminData.products.find((p) => p.id === +b.dataset.image),
         );
         $("#product-photo").focus();
+      }),
+  );
+  document.querySelectorAll("[data-alert]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        const p = adminData.products.find(
+          (p) => p.id === +button.dataset.alert,
+        );
+        $("#editor-content").innerHTML =
+          `<form id="alert-edit"><h3>${esc(p.name)}</h3><label>Alert when stock reaches this many sacks<input name="reorder_point" type="number" min="0" max="100000" value="${p.reorder_point}" required></label><button class="primary checkout-button">Save reorder point</button><p id="editor-error" role="alert"></p></form>`;
+        $("#alert-edit").onsubmit = async (event) => {
+          event.preventDefault();
+          try {
+            await post(
+              "/api/admin/reorder-point",
+              {
+                id: p.id,
+                reorder_point: Number(
+                  new FormData(event.target).get("reorder_point"),
+                ),
+              },
+              "PATCH",
+            );
+            $("#editor-dialog").close();
+            await adminView("inventory");
+          } catch (e) {
+            $("#editor-error").textContent = e.message;
+          }
+        };
+        show("#editor-dialog");
       }),
   );
   document
@@ -970,7 +1095,7 @@ async function reportsPanel() {
       const r = await api("/api/admin/reports?" + params);
       $("#csv-export").href = "/api/admin/reports?" + params + "&format=csv";
       $("#report-results").innerHTML =
-        `<div class="admin-stats"><div>Completed order total<b>${money(r.total)}</b></div><div>Rice sales (excl. delivery)<b>${money(r.total - r.deliveryFees)}</b></div><div>Completed orders<b>${r.orders.length}</b></div></div><h3>Best-selling rice</h3>${r.bestSellers.map((p) => `<div class="bar-row"><span>${esc(p.name)}</span><div><i style="width:${Math.max(3, (p.sacks / Math.max(...r.bestSellers.map((x) => x.sacks))) * 100)}%"></i></div><b>${p.sacks} sacks</b></div>`).join("") || '<p class="empty">No completed orders in this date range.</p>'}<h3>Completed orders</h3>${orderTable(r.orders.map((o) => ({ ...o, nextStatuses: [] })))}`;
+        `<div class="admin-stats"><div>Completed order total<b>${money(r.total)}</b></div><div>Rice sales (excl. delivery)<b>${money(r.total - r.deliveryFees)}</b></div><div>Completed orders<b>${r.orders.length}</b></div></div><div class="admin-stats"><div>Cash collected in this period<b>${money(r.collectedCash)}</b></div></div><p class="form-note">Cash recorded by admin, grouped by collection date. Excludes electronic demo payments. Historical paid orders without a collection record are not reconstructed.</p><details><summary>Cash collection ledger</summary><div class="table-scroll"><table class="admin-table"><thead><tr><th>Order</th><th>Collected</th><th>Amount</th></tr></thead><tbody>${r.collections.map((c) => `<tr><td>${esc(c.order_id)}</td><td>${date(c.created)}</td><td>${money(c.amount_centavos / 100)}</td></tr>`).join("") || '<tr><td colspan="3">No cash recorded in this period.</td></tr>'}</tbody></table></div></details><h3>Best-selling rice</h3>${r.bestSellers.map((p) => `<div class="bar-row"><span>${esc(p.name)}</span><div><i style="width:${Math.max(3, (p.sacks / Math.max(...r.bestSellers.map((x) => x.sacks))) * 100)}%"></i></div><b>${p.sacks} sacks</b></div>`).join("") || '<p class="empty">No completed orders in this date range.</p>'}<h3>Completed orders</h3>${orderTable(r.orders.map((o) => ({ ...o, nextStatuses: [] })))}`;
       bindOrderActions();
     } catch (e) {
       $("#report-results").textContent = e.message;
@@ -1008,3 +1133,43 @@ async function init() {
   }
 }
 init();
+
+$("#notifications-link").onclick = async () => {
+  try {
+    const entries = await api("/api/notifications");
+    $("#notifications-content").innerHTML =
+      '<p class="demo-notice">In-app demonstration log. No email or SMS was sent.</p>' +
+      entries
+        .map(
+          (n) =>
+            `<article class="order"><b>${esc(n.order_id)}</b><p>${esc(n.message)}</p><small>${date(n.created)}</small></article>`,
+        )
+        .join("") +
+      (entries.length ? "" : '<p class="empty">No updates yet.</p>');
+    show("#notifications-dialog");
+    await post("/api/notifications/read", {});
+  } catch (e) {
+    toast(e.message);
+  }
+};
+function connectivity() {
+  $("#offline-banner").hidden = navigator.onLine;
+}
+addEventListener("online", connectivity);
+addEventListener("offline", connectivity);
+connectivity();
+if ("serviceWorker" in navigator)
+  navigator.serviceWorker.register("/sw.js").catch(() => {});
+
+async function auditPanel() {
+  const entries = await api("/api/admin/audit");
+  $("#admin-panel").innerHTML =
+    '<h2>Admin audit</h2><p class="form-note">Successful admin changes, recorded with the configured admin identity. No passwords, card details, or customer request bodies are logged.</p><div class="table-scroll"><table class="admin-table"><thead><tr><th>Who</th><th>Action / target</th><th>When</th></tr></thead><tbody>' +
+    entries
+      .map(
+        (e) =>
+          `<tr><td>${esc(e.actor)}</td><td>${esc(e.action)}</td><td>${date(e.created)}</td></tr>`,
+      )
+      .join("") +
+    "</tbody></table></div>";
+}

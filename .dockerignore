@@ -1,0 +1,9 @@
+.git
+node_modules
+data
+backups
+.env
+attachments
+test-results
+playwright-report
+.env.*

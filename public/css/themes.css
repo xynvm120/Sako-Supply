@@ -1,0 +1,317 @@
+/* Theme colors are applied before first paint; product photographs stay unaltered. */
+:root {
+  color-scheme: light;
+}
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  background: #f1f5eb;
+  color: #35583d;
+  border-radius: 22px;
+  padding: 11px 13px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+.theme-toggle svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.theme-toggle .sun-icon {
+  display: none;
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --green: #a6d69c;
+  --lime: #bed995;
+  --paper: #19251f;
+  --line: #34473a;
+  --muted: #b1bfab;
+}
+html[data-theme="dark"] body {
+  background: #111c16;
+  color: #e4eddf;
+}
+html[data-theme="dark"]
+  :is(header, dialog, .dialog-header, .product, .shop-tools, .benefits > div) {
+  background: #1c2a21;
+  border-color: #354539;
+  box-shadow: none;
+}
+html[data-theme="dark"] .dialog-header {
+  background: #1c2a21f5;
+}
+html[data-theme="dark"]
+  :is(.brand, .text-button, .product-name, .dialog-header > button) {
+  color: #d4e8c7;
+}
+html[data-theme="dark"] .brand-dot {
+  color: #b5d88b;
+}
+html[data-theme="dark"]
+  :is(
+    nav .active,
+    .availability-pill,
+    .theme-toggle,
+    .filters button,
+    .search-sort input,
+    .search-sort select,
+    .secondary,
+    .small-button,
+    .tabs button:not(.chosen),
+    .dialog-header > button,
+    .empty,
+    .payment-demo,
+    .order,
+    .fulfillment-hint,
+    .pickup-card,
+    .photo-editor
+  ) {
+  background: #26382a;
+  color: #d1e0c6;
+  border-color: #40533e;
+}
+html[data-theme="dark"] .theme-toggle .moon-icon {
+  display: none;
+}
+html[data-theme="dark"] .theme-toggle .sun-icon {
+  display: block;
+}
+html[data-theme="dark"]
+  :is(
+    .cart-button,
+    .primary,
+    .filters button.selected,
+    .tabs button.chosen,
+    .admin-sidebar > button.current,
+    .inventory-row button
+  ) {
+  background: #a7ce8c;
+  color: #172719;
+  border-color: #a7ce8c;
+}
+html[data-theme="dark"] .hero .primary {
+  background: #e4efcf;
+  color: #1a3924;
+}
+html[data-theme="dark"] .cart-button span {
+  background: #1c3b2926;
+  color: #183322;
+}
+html[data-theme="dark"]
+  :is(.hero-art, .bottom-banner, .order-summary, .admin-stats div) {
+  background: #243b2b;
+  color: #dfebd6;
+  border-color: #3d563c;
+}
+html[data-theme="dark"]
+  :is(
+    .hero-art .art-label strong,
+    .order-summary .order-summary-total,
+    .hero-art:before
+  ) {
+  color: #c8e1b7;
+}
+html[data-theme="dark"] .hero-art:before {
+  background: #344e32;
+}
+html[data-theme="dark"]
+  :is(
+    .hero-art .art-caption,
+    .hero-art .art-label,
+    .section-top p,
+    .bottom-banner p,
+    .product > p,
+    .stock,
+    .order-summary p,
+    .benefits small,
+    .catalog-meta,
+    .form-note,
+    footer p,
+    footer span,
+    .welcome-strip .eyebrow,
+    .section-top .eyebrow
+  ) {
+  color: #b1bfab;
+}
+html[data-theme="dark"] .benefits b {
+  background: #31462e;
+  color: #b3d399;
+}
+html[data-theme="dark"] .product-art {
+  background: #2c3a2e !important;
+}
+html[data-theme="dark"] .tag {
+  background: #e1edcd;
+  color: #27482d;
+}
+html[data-theme="dark"] .weight {
+  color: #c1d1b4;
+}
+html[data-theme="dark"] .add {
+  background: #a7ce8c;
+  color: #1b3923;
+}
+html[data-theme="dark"] .product:hover {
+  border-color: #789567;
+}
+html[data-theme="dark"]
+  :is(
+    label input,
+    label select,
+    label textarea,
+    .panel-tools > input,
+    .panel-tools > select,
+    .full-search,
+    .admin-table select,
+    .cart-qty,
+    .quantity button,
+    .inventory-row input
+  ) {
+  background: #142219;
+  color: #e3eddb;
+  border-color: #42563f;
+}
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: #94a68b;
+}
+html[data-theme="dark"] .auth-intro + .tabs {
+  background: #26382a;
+}
+html[data-theme="dark"] .badge {
+  background: #344b31;
+  color: #dbebcd;
+}
+html[data-theme="dark"] .badge.good {
+  background: #2a5237;
+  color: #c9edcd;
+}
+html[data-theme="dark"] .badge.danger {
+  background: #623b35;
+  color: #ffdbcd;
+}
+html[data-theme="dark"] :is(.demo-notice, .live-pill) {
+  background: #2b402a;
+  color: #cedfb8;
+  border-color: #4b6240;
+}
+html[data-theme="dark"] .tracking-card {
+  background: #15231a;
+  border-color: #3b4e36;
+}
+html[data-theme="dark"]
+  :is(#tracking-label, .map-legend, .delivery-progress > b) {
+  color: #c3d6b4;
+}
+html[data-theme="dark"] :is(.delivery-progress > div, .bar-row > div) {
+  background: #35472f;
+}
+html[data-theme="dark"]
+  :is(
+    .admin-table th,
+    .admin-table small,
+    .admin-sidebar > button,
+    .inventory-placeholder,
+    .photo-placeholder
+  ) {
+  color: #b3c4a6;
+}
+html[data-theme="dark"] .admin-table th {
+  border-color: #4a5c42;
+}
+html[data-theme="dark"]
+  :is(
+    .admin-sidebar > button:hover:not(.current),
+    .secondary:hover,
+    .small-button:hover
+  ) {
+  background: #364c31;
+}
+html[data-theme="dark"]
+  :is(#product-photo-preview, .upload-label input, .inventory-placeholder) {
+  background: #17251b;
+  border-color: #4b6040;
+}
+html[data-theme="dark"] .upload-label {
+  color: #d1e5be;
+}
+html[data-theme="dark"] .pickup-icon {
+  background: #3b5234;
+  color: #d9e8c9;
+}
+html[data-theme="dark"] .receipt {
+  color: #e4eddf;
+}
+html[data-theme="dark"] [role="alert"] {
+  color: #ffb5a2;
+}
+html[data-theme="dark"] .remove {
+  color: #edbca1;
+}
+html[data-theme="dark"] :is(input, select, textarea, button, a):focus-visible {
+  outline-color: #c0e297;
+}
+html[data-theme="dark"] .success strong {
+  background: #2e442c;
+}
+html[data-theme="dark"] .timeline li:before {
+  border-color: #1c2a21;
+}
+html[data-theme="dark"] #toast {
+  background: #a7ce8c;
+  color: #152719;
+}
+@media (max-width: 700px) {
+  .header-actions {
+    gap: 7px;
+  }
+  .theme-toggle {
+    padding: 9px 10px;
+    font-size: 9px;
+    gap: 5px;
+  }
+  .theme-toggle svg {
+    width: 14px;
+    height: 14px;
+  }
+  .header-actions .cart-button {
+    padding: 9px 12px;
+  }
+}
+@media print {
+  html[data-theme="dark"] {
+    color-scheme: light;
+  }
+  html[data-theme="dark"] .receipt,
+  html[data-theme="dark"] .receipt * {
+    color: #172c22 !important;
+  }
+  html[data-theme="dark"] .receipt .demo-notice {
+    background: white !important;
+    border-color: #777 !important;
+  }
+  .header-actions {
+    display: none !important;
+  }
+}
+html[data-theme="dark"] dialog {
+  color: #e4eddf;
+}
+html[data-theme="dark"] .product:nth-child(n) .product-art {
+  background: #2c3a2e !important;
+}
+html[data-theme="dark"] .hero-art:before {
+  color: #c8e1b7;
+}

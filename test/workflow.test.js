@@ -640,6 +640,30 @@ test("wholesale customer and admin workflow", async (t) => {
         );
       },
     );
+    await t.test(
+      "CSP, health, admin audit and collections report",
+      async () => {
+        const response = await fetch("http://127.0.0.1:32187/");
+        assert.ok(
+          response.headers
+            .get("content-security-policy")
+            .includes("script-src 'self'"),
+        );
+        assert.equal((await call("/health")).data.status, "ok");
+        const logged = await call("/api/login", "POST", {
+          email: "admin@sakosupply.com",
+          password: "test-password",
+        });
+        const audit = (
+          await call("/api/admin/audit", "GET", undefined, logged.cookie)
+        ).data;
+        assert.ok(audit.some((row) => row.actor === "admin@sakosupply.com"));
+        const report = (
+          await call("/api/admin/reports", "GET", undefined, logged.cookie)
+        ).data;
+        assert.equal(report.collectedCash, product.price * 5 + 150);
+      },
+    );
   } finally {
     await stop(child);
     rmSync(dir, { recursive: true, force: true });
@@ -735,6 +759,232 @@ test("default admin signs in through shared email/password login", async () => {
     );
   } finally {
     await stop(child);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("failed login rate limiter and successful attempts are distinguished", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "sako-limits-"));
+  const child = await start(dir, 32191);
+  const call = client(32191);
+  try {
+    for (let i = 0; i < 10; i++)
+      assert.equal(
+        (
+          await call("/api/login", "POST", {
+            email: "admin@sakosupply.com",
+            password: "test-password",
+          })
+        ).status,
+        200,
+      );
+    for (let i = 0; i < 8; i++)
+      assert.equal(
+        (
+          await call("/api/login", "POST", {
+            email: "admin@sakosupply.com",
+            password: "bad",
+          })
+        ).status,
+        401,
+      );
+    const blocked = await fetch("http://127.0.0.1:32191/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: "admin@sakosupply.com", password: "bad" }),
+    });
+    assert.equal(blocked.status, 429);
+    assert.ok(Number(blocked.headers.get("retry-after")) > 0);
+    assert.equal(
+      (
+        await call("/api/auth/login", "POST", {
+          email: "other@example.test",
+          password: "different",
+        })
+      ).status,
+      401,
+    );
+    const buyer = await call("/api/auth/register", "POST", {
+      name: "Limit Buyer",
+      email: "limit-buyer@example.test",
+      password: "limit-buyer-password",
+    });
+    for (let i = 0; i < 20; i++)
+      assert.equal(
+        (
+          await call(
+            "/api/orders",
+            "POST",
+            {
+              customer: "Limit Buyer",
+              phone: "09123456789",
+              method: "pickup",
+              payment_method: "cash",
+              items: [],
+            },
+            buyer.cookie,
+          )
+        ).status,
+        400,
+      );
+    assert.equal(
+      (
+        await call(
+          "/api/orders",
+          "POST",
+          {
+            customer: "Limit Buyer",
+            phone: "09123456789",
+            method: "pickup",
+            payment_method: "cash",
+            items: [],
+          },
+          buyer.cookie,
+        )
+      ).status,
+      429,
+    );
+  } finally {
+    await stop(child);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+test("parallel servers cannot sell the last sack twice; expiry, zones, cancellation, and SQL guards", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "sako-race-"));
+  let first = await start(dir, 32192);
+  const second = await start(dir, 32193);
+  const a = client(32192),
+    b = client(32193);
+  try {
+    const user = await a("/api/auth/register", "POST", {
+      name: "Race Buyer",
+      email: "race@example.test",
+      password: "safe-race-password",
+    });
+    const admin = await a("/api/login", "POST", {
+      email: "admin@sakosupply.com",
+      password: "test-password",
+    });
+    const product = (await a("/api/products")).data[0];
+    await a(
+      "/api/admin/stock",
+      "PATCH",
+      {
+        id: product.id,
+        delta: 1 - product.stock,
+        reason: "Race test last sack",
+      },
+      admin.cookie,
+    );
+    const request = {
+      customer: "Race Buyer",
+      phone: "09123456789",
+      method: "pickup",
+      payment_method: "cash",
+      items: [{ id: product.id, quantity: 1 }],
+    };
+    const results = await Promise.all([
+      a("/api/orders", "POST", request, user.cookie),
+      b("/api/orders", "POST", request, user.cookie),
+    ]);
+    assert.deepEqual(results.map((r) => r.status).sort(), [201, 400]);
+    assert.equal((await a("/api/products")).data[0].stock, 0);
+    const winner = results.find((r) => r.status === 201);
+    assert.equal(
+      (
+        await a(
+          "/api/orders/" + winner.data.id + "/cancel",
+          "POST",
+          {},
+          user.cookie,
+        )
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await a(
+          "/api/orders/" + winner.data.id + "/cancel",
+          "POST",
+          {},
+          user.cookie,
+        )
+      ).status,
+      400,
+    );
+    assert.equal((await a("/api/products")).data[0].stock, 1);
+    await a(
+      "/api/admin/stock",
+      "PATCH",
+      { id: product.id, delta: 30, reason: "Bulk test supply" },
+      admin.cookie,
+    );
+    const bulk = await a(
+      "/api/orders",
+      "POST",
+      {
+        ...request,
+        method: "delivery",
+        address: "Demo address",
+        delivery_zone: "tupi",
+        items: [{ id: product.id, quantity: 10 }],
+      },
+      user.cookie,
+    );
+    assert.equal(bulk.data.discount_centavos, 25000);
+    assert.equal(
+      bulk.data.items[0].original_price_centavos,
+      product.price * 100,
+    );
+    assert.equal(
+      bulk.data.items[0].unit_price_centavos,
+      (product.price - 25) * 100,
+    );
+    assert.equal(bulk.data.total, (product.price - 25) * 10 + 300);
+    assert.equal(
+      (
+        await a(
+          "/api/orders",
+          "POST",
+          {
+            ...request,
+            method: "delivery",
+            address: "Demo address",
+            delivery_zone: "invalid",
+          },
+          user.cookie,
+        )
+      ).status,
+      400,
+    );
+    const notes = (await a("/api/notifications", "GET", undefined, user.cookie))
+      .data;
+    assert.ok(notes.length >= 3);
+    const inspect = new DatabaseSync(path.join(dir, "sako.sqlite"));
+    assert.throws(() =>
+      inspect
+        .prepare("UPDATE products SET stock=-1 WHERE id=?")
+        .run(product.id),
+    );
+    inspect
+      .prepare("UPDATE sessions SET expires=0 WHERE role='customer'")
+      .run();
+    assert.equal(
+      (await a("/api/orders", "GET", undefined, user.cookie)).status,
+      401,
+    );
+    inspect.close();
+    await stop(first);
+    first = await start(dir, 32192);
+    const after = new DatabaseSync(path.join(dir, "sako.sqlite"));
+    assert.equal(
+      after.prepare("SELECT count(*) n FROM sessions WHERE expires=0").get().n,
+      0,
+    );
+    after.close();
+  } finally {
+    await stop(first);
+    await stop(second);
     rmSync(dir, { recursive: true, force: true });
   }
 });

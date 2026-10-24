@@ -1,0 +1,22 @@
+{
+  "name": "Sako Supply Wholesale Rice",
+  "short_name": "Sako Supply",
+  "id": "/",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#edf4e9",
+  "theme_color": "#215b40",
+  "description": "25 kg rice ordering research prototype. Orders require an online connection.",
+  "icons": [
+    {
+      "src": "/assets/app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/assets/app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

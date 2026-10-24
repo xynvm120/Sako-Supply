@@ -5,24 +5,10 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Sako Supply · Good rice. Good days.</title>
     <meta name="color-scheme" content="light dark" />
-    <script>
-      try {
-        const preference = localStorage.getItem("sako-theme");
-        document.documentElement.dataset.theme = ["light", "dark"].includes(
-          preference,
-        )
-          ? preference
-          : matchMedia("(prefers-color-scheme: dark)").matches
-            ? "dark"
-            : "light";
-      } catch {
-        document.documentElement.dataset.theme = matchMedia(
-          "(prefers-color-scheme: dark)",
-        ).matches
-          ? "dark"
-          : "light";
-      }
-    </script>
+    <meta name="theme-color" content="#215b40" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/assets/app-icon.svg" />
+    <script src="/theme-init.js"></script>
     <link rel="stylesheet" href="/style.css" />
     <link rel="stylesheet" href="/leaflet.css" />
   </head>
@@ -31,15 +17,21 @@
       From our bigasan to your hapag.
       <span>Fresh stocks, fair prices, always.</span>
     </div>
+    <div id="offline-banner" class="offline-banner" hidden>
+      You are offline. You can browse saved pages, but sign-in, orders,
+      payments, and tracking require the server.
+    </div>
     <header>
       <a class="brand" href="#"
         >sako<span class="brand-dot">✳</span><small>SUPPLY</small></a
       >
       <nav>
         <a href="#shop" class="active">Shop rice</a
-        ><a href="#why">Our promise</a
+        ><a href="#why">Our promise</a><a href="#how-to-order">How to order</a
         ><button id="account-link" class="text-button">Sign in</button
         ><button id="orders-link" class="text-button" hidden>My orders</button
+        ><button id="notifications-link" class="text-button" hidden>
+          Updates</button
         ><button id="admin-link" class="text-button" hidden>Dashboard →</button>
       </nav>
       <div class="header-actions">
@@ -167,6 +159,53 @@
         </div>
         <div id="products" class="products"><p>Loading fresh picks…</p></div>
       </section>
+      <section id="how-to-order" class="walkthrough">
+        <div>
+          <div class="eyebrow">A QUICK TOUR</div>
+          <h2>Your next sack, in a few simple steps.</h2>
+          <ol>
+            <li>
+              Explore the rice catalog and open a product to read its details.
+            </li>
+            <li>
+              Add 25 kg sacks to your bag. Bulk savings apply automatically.
+            </li>
+            <li>
+              Sign in, choose delivery or pickup, and select a demo payment
+              method.
+            </li>
+            <li>Save your receipt and follow order updates in My orders.</li>
+          </ol>
+          <p>
+            This short silent walkthrough shows the actual prototype. Payments
+            and map movement are simulations.
+          </p>
+        </div>
+        <div>
+          <video
+            controls
+            preload="metadata"
+            playsinline
+            poster="/assets/products/dinorado.png"
+            aria-label="Sako Supply ordering walkthrough"
+          >
+            <source src="/assets/ordering-guide.webm" type="video/webm" />
+            <track
+              kind="captions"
+              src="/assets/ordering-guide.vtt"
+              srclang="en"
+              label="English"
+              default
+            />
+            Your browser does not support video. Use the written steps alongside
+            this video.
+          </video>
+          <p>
+            Silent demo with captions. A written transcript is provided
+            alongside the video.
+          </p>
+        </div>
+      </section>
       <section class="bottom-banner">
         <div>
           <div class="eyebrow">A FULL SACK. A HAPPY HOME.</div>
@@ -247,6 +286,13 @@
         <button data-close aria-label="Close">×</button>
       </div>
       <div id="image-viewer-content"></div>
+    </dialog>
+    <dialog id="notifications-dialog">
+      <div class="dialog-header">
+        <h2>Order updates</h2>
+        <button data-close aria-label="Close">×</button>
+      </div>
+      <div id="notifications-content"></div>
     </dialog>
     <div id="toast" role="status"></div>
     <script src="/leaflet.js"></script>

@@ -47,7 +47,7 @@ Order flow:
 - Pickup: Pending → Preparing → Ready for pickup → Completed.
 - Active orders can be cancelled. Stock is restored exactly once.
 
-Payment and order status are independent. Reports use order-placement dates in Philippine time and currently completed orders. They include demo electronic payments and can include unpaid completed cash orders; they are not collected-cash, tax, or profit reports.
+Payment and order status are independent. Reports use order-placement dates in Philippine time and currently completed orders. They include demo electronic payments and can include unpaid completed cash orders; a separate ledger reports admin-recorded cash by collection date. Neither report is a tax or profit report.
 
 ## Payment simulations — no real money
 
@@ -64,13 +64,13 @@ Never enter a real card. Card number, expiry, and CVC remain in browser-only fie
 
 Failed demo payments create no order and reserve no stock. Successful simulations show **Demo paid**; cancellation changes that to **Demo refunded**, without moving funds. Cash orders remain **Unpaid** until an admin records collection. Printed documents are clearly labeled research-demo order acknowledgments/receipts, **not tax invoices or official receipts**.
 
-## Delivery simulation
+## Delivery zones, bulk pricing, and the map
 
-The delivery map uses Leaflet and OpenStreetMap tiles. It shows a sample route in Koronadal, not a geocoded customer address or actual rider GPS. Checkout requires an explicit delivery/pickup choice. Delivery orders show the map near the top of order details immediately, even while Pending. Order, payment status, and timeline update automatically every five seconds; no manual refresh is needed. Pickup orders show a clear collection panel instead of a delivery map. After an admin selects **Out for delivery**, a simulated truck moves along the route over three minutes, stopping near the destination until completion. The client polls every five seconds while the details view is open. Pickup orders do not show delivery tracking.
+Every active listing is a 25 kg sack. Sample wholesale discounts are calculated on the server in integer centavos: **10–24 sacks: ₱25 off each; 25+ sacks: ₱50 off each**. Different rice types can be combined. Prices never fall below ₱1 per sack. Checkout and printed receipts show savings separately.
 
-A sample **₱150 flat delivery fee** is calculated on the server. It is not a freight quote; real wholesale delivery pricing and coverage require store confirmation.
+Sample delivery zones: **Koronadal ₱150, Tupi ₱300, Tantangan ₱250**. Pickup is free. These are demonstration rates, not verified carrier quotes or a promise of service coverage.
 
-Map tiles need Internet access to `tile.openstreetmap.org`; a bundled, clearly labeled illustrated backdrop keeps the map route visible if tiles are blocked. The illustration is not a street map or navigation aid. Fonts optionally load from `fonts.googleapis.com` and `fonts.gstatic.com`, with local fallback fonts. No map API key is required.
+The Leaflet map now uses a bundled **local illustrated backdrop**. It never contacts a public street-tile server, preventing provider “access blocked” banners from obscuring the demo. The map is not actual street navigation, real rider GPS, geocoding, or a route to the customer's entered address or selected zone. It shows a fixed, labeled sample route. Pending delivery orders show the map immediately; after admin dispatch, a simulated truck moves for three minutes. Status/position refresh every five seconds. Pickup orders have a collection panel instead.
 
 ## Products and market descriptions
 
@@ -78,9 +78,9 @@ The catalog includes Dinorado, Jasmine, Sinandomeng, well-milled white rice, and
 
 ## Database and architecture
 
-No XAMPP or separate database server is required. SQLite creates `data/sako.sqlite` on first startup. It is a SQL relational database, **not MySQL**, and is not managed through phpMyAdmin. Database setup lives in [db/schema.sql](db/schema.sql); backwards-compatible migrations are in `server.js`.
+No XAMPP or separate database server is required. SQLite creates `data/sako.sqlite` on first startup. It is a SQL relational database, **not MySQL**, and is not managed through phpMyAdmin. Database setup lives in [db/schema.sql](db/schema.sql); backwards-compatible migrations are in `db.js`.
 
-Tables: `users`, `products`, `orders`, `order_items`, `sessions`, `stock_movements`, and `order_events`. Orders retain immutable product/price snapshots so catalog changes do not rewrite receipts. The old order JSON snapshot is retained solely for compatibility; the application uses normalized `order_items`.
+Tables include `users`, `products`, `orders`, `order_items`, `sessions`, `stock_movements`, `order_events`, `collections`, `admin_log`, and `notifications`. Monetary calculation and new snapshots use integer centavos; legacy peso fields remain for API/receipt compatibility. Orders retain immutable product/price snapshots so catalog changes do not rewrite receipts. The old order JSON snapshot is retained solely for compatibility; the application uses normalized `order_items`.
 
 ```mermaid
 erDiagram
@@ -132,7 +132,7 @@ This is a defense prototype. Real payments require a provider's hosted payment f
 
 ## Visual refresh and tracking changes
 
-The interface now uses mint backgrounds, rounded white cards, pill controls, and a bundled rice-field illustration inspired by an agriculture dashboard. It remains responsive on phones. All illustrations load locally; only optional street tiles and web fonts need Internet access.
+The interface now uses mint backgrounds, rounded white cards, pill controls, and a bundled rice-field illustration inspired by an agriculture dashboard. It remains responsive on phones. All illustrations load locally; the local map, fonts, and bundled video do not require third-party website access. System fonts are used.
 
 Existing pickup orders remain pickup orders; they are never silently converted to deliveries. To demonstrate delivery tracking, place a **new delivery order**, open **Open delivery map**, and use a second/incognito admin window to progress Pending → Preparing → Out for delivery. The truck starts moving after dispatch. This remains a simulation, not real rider GPS.
 
@@ -145,3 +145,43 @@ Use the theme toggle beside the bag button. The first visit follows your device'
 ## Product image collection
 
 The five standard rice types include bundled, AI-generated Sako 25 kg packaging mockups with coordinated pale sage studio backgrounds and distinct rice labels. They are illustrative house-brand designs, not verified photographs of commercial supplier packaging. Images load locally from `public/assets/products`, without third-party image links. Uploaded admin photos take precedence; removing a custom photo restores the matching default for standard products. Product cards open details; click **View larger** in the product details image for an enlarged, keyboard-accessible viewer (Escape closes it).
+
+## Defense rubric and implementation status
+
+See [docs/RUBRIC-CHECKLIST.md](docs/RUBRIC-CHECKLIST.md) for the exact four criteria from the supplied IT 201 format, the evidence available, and remaining limitations. [docs/IMPLEMENTATION-STATUS.md](docs/IMPLEMENTATION-STATUS.md) maps the requested hardening/features to their current state. A rubric checklist is not a promised grade or a completed user-acceptance study.
+
+## Additional customer/admin tools
+
+- **Reorder** adds an old order's quantities to the current bag, using current stock and pricing. It refuses unavailable items instead of silently substituting them.
+- Customers can **cancel Pending orders**; stock is restored once. Orders already being prepared require admin handling.
+- **Updates** is an authenticated in-app demonstration notification log; no SMS/email is sent.
+- **Stock alert** lets an admin set each product's reorder point.
+- Overview includes real-data **daily and weekly completed-sales charts**, with accessible data tables and no fabricated sales.
+- Reports include a separate **cash collection ledger**, filtered by collection date. Electronic demo payments and historical “Paid” entries without a collection record are excluded. The ledger records what an admin enters; it is not independent proof of payment.
+- **Admin audit** records successful admin mutations with actor email, action/target, and timestamp. The application still has one configured admin identity; cashier/staff roles are not implemented.
+
+## Security and maintenance
+
+Scripts are restricted by CSP to local files. Inline styles remain allowed for Leaflet and chart/layout styles. Customer names, addresses, product text, and audit entries are escaped before HTML rendering; browser tests include stored-markup probes. Image uploads are size-limited, byte-counted, and signature-checked; SVG uploads are not accepted.
+
+Only failed logins count toward the 8-per-10-minute IP+email bucket; an additional failed-attempt IP cap protects against email rotation. Successful login clears the account bucket. Registration has a separate creation limit; order submissions have a per-customer 20-per-minute limit. Limits are in process memory, so a multi-instance production deployment needs shared limiting. Responses include Retry-After when throttled.
+
+Expired sessions are removed on startup and every 15 minutes. Existing admin123 is deliberately retained for your defense, with a startup warning; set ADMIN_PASSWORD for any public deployment. Logs contain method, path, status, and time, not passwords or request bodies. `GET /health` checks the SQL connection.
+
+Money snapshots, expiry cleanup, indexes, and stock validation are additive migrations. Historical order JSON is retained because earlier local versions may still need it; normalized order_items remains authoritative. Legacy products receive SQL validation triggers, and fresh products also have base NOT NULL/CHECK constraints. Existing receipts are preserved.
+
+## Backups and deployment files
+
+```sh
+npm run backup
+```
+
+Backups use SQLite's online backup API plus a copy of uploaded images, in an ignored `backups/` folder. A restore-integrity test is included. For the most consistent full-folder backup, stop writes while backing up uploaded files. Automatic backups run at **02:00 Philippine time while the server is running**; missed schedules are not replayed. `AUTO_BACKUP=off` disables scheduling; `BACKUP_DIR` changes the destination. Backups are not automatically deleted; monitor storage and keep an off-device copy. Treat backups as private customer data.
+
+An optional `.env.example` is provided. Normal `npm start` uses the environment already set; `.env` is only loaded with `npm run start:env` after you copy/edit the example. Never commit real credentials.
+
+A non-root Node 24 Dockerfile and a GitHub Actions workflow running npm test are included. CI status must be checked on GitHub; local passing tests do not establish a remote CI run. Persist `/app/data` and `/app/backups` with volumes when using Docker.
+
+## Phone installation and offline behavior
+
+A manifest, app icons, and a service worker provide a basic installable app shell on supported HTTPS/localhost browsers. The cache is network-first and stores only public static shell files. It **never caches API responses, customer records, or order mutations**. Offline sign-in, checkout, and tracking are unsupported and an offline banner explains the limitation. Browser installation prompts depend on the browser/device. The bundled tutorial video has controls, captions, and a written transcript.

@@ -24,7 +24,7 @@ flowchart LR
     M[Admin browser] -->|Role-protected API| A
     A --> D[(SQLite SQL database)]
     A --> F[Uploaded product photos]
-    C -->|Optional tile requests| O[OpenStreetMap]
+    C --> L[Local illustrated demo map]
     P[Test card fields in browser] -->|Simulation outcome only| A
 ```
 
@@ -50,8 +50,21 @@ A deployed version requires HTTPS. The prototype's browser card fields never sen
 
 **Are all product names brands?** No. The catalog uses Philippine-market rice retail names, grain types, and milling descriptions. Commercial supplier brands, current stock, pricing, country of origin, and exact 25 kg packaging must be verified before actual selling.
 
-**What is counted as sales?** Reports include completed orders filtered by order-placement date in Philippine time, including delivery fees. They label demo electronic payments and may include unpaid cash orders; they are not collected-cash or profit reports.
+**What is counted as sales?** Reports include completed orders filtered by order-placement date in Philippine time, including delivery fees. They label demo electronic payments and may include unpaid cash orders; a separate ledger reports admin-recorded cash by collection date. Neither report is a profit report.
 
 ## Research integrity
 
 Use actual interviews, observations, or surveys for the problem statement. Do not invent respondents, test participants, acceptance scores, or research results. Automated technical tests establish software behavior, not completed user acceptance testing or an ISO 25010 evaluation.
+
+## Updated technical talking points
+
+- The “access blocked” map issue is addressed by using a local illustrated demo map. No street-tile server is contacted; do not describe it as real GPS or real road navigation.
+- Wholesale tiers apply across rice types. At 10 sacks, a ₱1,450 sack becomes ₱1,425. Ten sacks delivered to Tupi total **₱14,550** (₱14,250 rice + ₱300 sample zone fee).
+- Integer-centavo calculations prevent fractional-peso rounding drift in pricing. Existing peso fields are maintained for older receipts/API compatibility.
+- Overselling is tested across two server processes sharing SQLite: two attempts for the last sack produce one order and one stock rejection.
+- Completed-order revenue and collected cash are different reports. Explain the dates, payment flags, and demo-payment limitations.
+- The CSP prohibits inline scripts and third-party script sources. Inline styles are retained for Leaflet; escaping and upload validation remain necessary.
+- Admin changes have an audit trail for the configured admin email. This does not mean cashier/staff roles exist.
+- The tutorial is a locally bundled, silent 15-second walkthrough with captions and a written transcript.
+
+Use [RUBRIC-CHECKLIST.md](RUBRIC-CHECKLIST.md) as your demonstration checklist and [IMPLEMENTATION-STATUS.md](IMPLEMENTATION-STATUS.md) for scope boundaries.

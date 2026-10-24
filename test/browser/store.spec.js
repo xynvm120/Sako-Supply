@@ -148,6 +148,12 @@ test("admin dashboard product management, stock, customer history, and report ex
   await expect(page.locator("#admin-panel")).toContainText(
     "A good day to do business.",
   );
+  await expect(
+    page.getByRole("heading", { name: "Daily sales · last 7 days" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Weekly sales · last 28 days" }),
+  ).toBeVisible();
   await page.screenshot({ path: "/tmp/sako-dashboard.png" });
   await page.getByRole("button", { name: "Products & inventory" }).click();
   await page.getByRole("button", { name: "Add product" }).click();
@@ -167,7 +173,9 @@ test("admin dashboard product management, stock, customer history, and report ex
   await editor.getByRole("button", { name: "Save product" }).click();
   await expect(page.locator("#admin-panel")).toContainText("Demo white rice");
   const row = page
-    .locator(".admin-table tr")
+    .locator("#admin-panel .admin-table")
+    .first()
+    .locator("tr")
     .filter({ hasText: "Demo white rice" });
   await expect(row.locator("img")).toBeVisible();
   const originalPhoto = await row.locator("img").getAttribute("src");
@@ -205,6 +213,12 @@ test("admin dashboard product management, stock, customer history, and report ex
   await expect(page.locator("#admin-panel")).toContainText(
     "Browser test supplier delivery",
   );
+  await row.getByRole("button", { name: "Stock alert", exact: true }).click();
+  await editor
+    .getByLabel("Alert when stock reaches this many sacks")
+    .fill("12");
+  await editor.getByRole("button", { name: "Save reorder point" }).click();
+  await expect(row).toContainText("Reorder point: 12");
   await page.getByRole("button", { name: "Customers", exact: false }).click();
   await expect(page.locator("#admin-panel")).toContainText(
     "Demo Wholesale Buyer",
@@ -300,7 +314,7 @@ test("pickup orders explain why no map is shown and refresh status automatically
   );
   await admin.dispose();
 });
-test("delivery map has a local illustrated background even if street tiles are blocked", async ({
+test("delivery map works locally without external tile access", async ({
   page,
 }) => {
   await page.route("https://tile.openstreetmap.org/**", (route) =>
@@ -334,6 +348,7 @@ test("delivery map has a local illustrated background even if street tiles are b
   );
   await expect(page.locator("img.leaflet-image-layer")).toBeVisible();
   await expect(page.locator("#map-tile-note")).toBeVisible();
+
   await expect(page.locator("#tracking-label")).toContainText(
     "Waiting for the admin",
   );
@@ -488,4 +503,152 @@ test("standard rice products have bundled images and accessible enlarged views",
     path: "/tmp/sako-product-images.png",
     fullPage: true,
   });
+});
+
+test("bulk tiers, zone fees, reorder, pending cancellation, and in-app updates work together", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.request.post("/api/auth/register", {
+    data: {
+      name: "Bulk Buyer",
+      email: "bulk-ui@example.test",
+      password: "bulk-ui-password",
+    },
+  });
+  await page.reload();
+  await page
+    .getByRole("button", { name: "View Dinorado details", exact: true })
+    .click();
+  await page.getByLabel("Number of sacks").fill("10");
+  await page.locator("#detail-add").getByRole("button").click();
+  await page
+    .locator("#product-dialog")
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await page.locator("#cart-button").click();
+  await page.getByLabel("Mobile number").fill("09123456789");
+  await page.getByLabel("Receive your order").selectOption("delivery");
+  await page
+    .getByRole("combobox", { name: "Delivery zone", exact: true })
+    .selectOption("tupi");
+  await page.getByLabel("Delivery address").fill("Fictional Tupi address");
+  await expect(page.locator("#cart-discount")).toContainText("250.00");
+  await expect(page.locator("#checkout-total")).toContainText("14,550.00");
+  await page.getByRole("button", { name: "Place demo order" }).click();
+  await page.locator("#success-receipt").waitFor();
+  await page.locator("#success-receipt").click();
+  await expect(page.locator("#receipt-content")).toContainText("Bulk discount");
+  await expect(page.locator("#receipt-content .receipt-totals")).toContainText(
+    "14,500.00",
+  );
+  await expect(page.locator("#receipt-content tbody")).toContainText(
+    "1,450.00",
+  );
+  await expect(page.locator("#receipt-content .grand")).toContainText(
+    "14,550.00",
+  );
+  await page
+    .locator("#receipt-dialog")
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await page
+    .locator("#cart-dialog")
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await page.locator("#orders-link").click();
+  await page.getByRole("button", { name: "Reorder", exact: true }).click();
+  await expect(page.locator("#cart-dialog")).toBeVisible();
+  await expect(page.locator(".cart-qty")).toHaveValue("10");
+  await page
+    .locator("#cart-dialog")
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Cancel order", exact: true }).click();
+  await expect(page.locator("#orders-content")).toContainText("Cancelled");
+  await page
+    .locator("#orders-dialog")
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await page.locator("#notifications-link").click();
+  await expect(page.locator("#notifications-content")).toContainText(
+    "cancelled",
+  );
+});
+test("rubric navigation, local video playback, CSP, and service worker do not fail", async ({
+  page,
+}) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const response = await page.goto("/");
+  expect(response.headers()["content-security-policy"]).toContain(
+    "script-src 'self'",
+  );
+  await page.getByRole("link", { name: "How to order", exact: true }).click();
+  await expect(page.locator("#how-to-order")).toBeInViewport();
+  const video = page.locator("video");
+  await expect
+    .poll(() =>
+      video.evaluate((v) => Number.isFinite(v.duration) && v.duration > 0),
+    )
+    .toBe(true);
+  await video.evaluate((v) => v.play());
+  await expect
+    .poll(() => video.evaluate((v) => v.currentTime))
+    .toBeGreaterThan(0);
+  await video.evaluate((v) => v.pause());
+  expect(
+    await page.evaluate(async () =>
+      Boolean(await navigator.serviceWorker.ready),
+    ),
+  ).toBe(true);
+  const manifest = await page.request.get("/manifest.webmanifest");
+  expect(manifest.ok()).toBe(true);
+  expect((await manifest.json()).start_url).toBe("/");
+  for (const link of await page.locator('a[href^="#"]').all()) {
+    const target = await link.getAttribute("href");
+    if (target && target !== "#")
+      expect(await page.locator(target).count()).toBe(1);
+  }
+  expect(errors).toEqual([]);
+});
+test("stored customer markup is rendered as text in profiles, orders, and receipts", async ({
+  page,
+}) => {
+  const payload =
+    '<img class="xss-probe" src=x onerror="window.injected=true">';
+  await page.goto("/");
+  await page.request.post("/api/auth/register", {
+    data: {
+      name: payload,
+      email: "escaping-ui@example.test",
+      password: "escaping-password-123",
+    },
+  });
+  await page.reload();
+  await page.locator("#account-link").click();
+  await expect(page.locator('input[name="name"]')).toHaveValue(payload);
+  await page
+    .locator("#account-dialog")
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await page.request.post("/api/orders", {
+    data: {
+      customer: payload,
+      phone: "09123456789",
+      method: "delivery",
+      delivery_zone: "koronadal",
+      address: payload,
+      payment_method: "cash",
+      items: [{ id: 1, quantity: 1 }],
+    },
+  });
+  await page.locator("#orders-link").click();
+  await page
+    .getByRole("button", { name: "Receipt / Print", exact: true })
+    .click();
+  await expect(page.locator("#receipt-content")).toContainText(payload);
+  await expect(page.locator(".xss-probe")).toHaveCount(0);
+  expect(await page.evaluate(() => window.injected)).toBeUndefined();
 });
