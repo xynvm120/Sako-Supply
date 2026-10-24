@@ -55,7 +55,7 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
   const orderRequest = page.waitForRequest(
     (r) => r.url().endsWith("/api/orders") && r.method() === "POST",
   );
-  await cart.getByRole("button", { name: "Place demo order" }).click();
+  await cart.getByRole("button", { name: "Place order" }).click();
   const submitted = (await orderRequest).postDataJSON();
   expect(submitted.cardNumber).toBeUndefined();
   expect(JSON.stringify(submitted)).not.toContain("4242");
@@ -78,7 +78,7 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
     .click();
   await cart.getByRole("button", { name: "Open delivery map" }).click();
   await expect(page.locator("#detail-content")).toContainText(
-    "SIMULATED TRACKING",
+    "Demo tracking",
   );
   await expect(page.locator(".leaflet-container")).toBeVisible();
   const admin = await playwright.request.newContext({
@@ -535,7 +535,7 @@ test("bulk tiers, zone fees, reorder, pending cancellation, and in-app updates w
   await page.getByLabel("Delivery address").fill("Fictional Tupi address");
   await expect(page.locator("#cart-discount")).toContainText("250.00");
   await expect(page.locator("#checkout-total")).toContainText("14,550.00");
-  await page.getByRole("button", { name: "Place demo order" }).click();
+  await page.getByRole("button", { name: "Place order" }).click();
   await page.locator("#success-receipt").waitFor();
   await page.locator("#success-receipt").click();
   await expect(page.locator("#receipt-content")).toContainText("Bulk discount");

@@ -321,7 +321,7 @@ function cartView() {
   const sub = items.reduce((a, p) => a + p.price * cart[p.id], 0),
     count = items.reduce((a, p) => a + cart[p.id], 0);
   $("#cart-content").innerHTML = items.length
-    ? `<div class="demo-notice">DEFENSE DEMO · No real payments or deliveries</div>${items.map((p) => `<div class="cart-row"><div><b>${esc(p.name)} · 25 kg</b><small>${money(p.price)} per sack</small></div><div class="quantity"><button data-change="${p.id}" data-delta="-1" aria-label="Decrease quantity">−</button><input class="cart-qty" data-quantity="${p.id}" aria-label="Sacks of ${esc(p.name)}" type="number" min="1" max="${p.stock}" value="${cart[p.id]}"><button data-change="${p.id}" data-delta="1" aria-label="Increase quantity">+</button></div><b>${money(p.price * cart[p.id])}</b><button class="remove" data-remove="${p.id}" aria-label="Remove ${esc(p.name)}">×</button></div>`).join("")}<p class="form-note">${count} sacks · ${count * 25} kg total. Every listed package is a 25 kg sack.</p>${user ? `<form id="checkout"><h3>Where’s your next good meal?</h3><div class="form-grid"><label>Full name<input name="customer" value="${esc(user.name)}" autocomplete="name" required maxlength="150"></label><label>Mobile number<input name="phone" value="${esc(user.phone)}" type="tel" autocomplete="tel" placeholder="09XXXXXXXXX" required pattern="[+0-9 -]{10,16}"></label><label class="wide">Receive your order<select name="method" id="method" required><option value="" selected disabled>Choose delivery or pickup</option><option value="delivery">Local delivery + tracking · Fee by zone</option><option value="pickup">Store pickup · Free · No delivery map</option></select></label><div class="fulfillment-hint wide" id="fulfillment-hint">Choose <b>Local delivery</b> for a delivery map, or <b>Store pickup</b> to collect your sacks yourself.</div><label class="wide" id="zone-label" hidden>Delivery zone<select id="delivery-zone" name="delivery_zone" aria-label="Delivery zone">${(config.deliveryZones || []).map((z) => `<option value="${esc(z.id)}">${esc(z.name)} · ${money(z.fee_centavos / 100)}</option>`).join("")}</select></label><label class="wide" id="address-label" hidden>Delivery address<textarea name="address" maxlength="500" autocomplete="street-address">${esc(user.address)}</textarea></label><label class="wide">Payment method<select name="payment_method" id="payment-method"><option value="cash">Cash on pickup / delivery</option><option value="card">Card · Simulation</option><option value="gcash">GCash · Simulation</option><option value="maya">Maya · Simulation</option></select></label></div><div id="payment-fields"></div><div class="bulk-offer">Wholesale savings: 10+ sacks → ₱25 off each; 25+ sacks → ₱50 off each. Sample tiers; all rice types can be combined.</div><p id="cart-discount" class="form-note"></p><div class="total"><span>Total <small id="delivery-note"></small></span><b id="checkout-total">${money(sub)}</b></div><p class="form-note">Stock is reserved after a successful order. Zone fees and bulk discounts are sample rates; final coverage requires store confirmation.</p><button class="primary checkout-button" type="submit">Place demo order →</button><p id="checkout-error" role="alert"></p></form>` : '<div class="empty"><h3>Keep your orders in one place.</h3><p>Sign in or create an account to check out.</p><button class="primary" id="checkout-signin">Sign in to order →</button></div>'}`
+    ? `<div class="demo-notice">Prototype checkout · Electronic payments are for testing; no money is transferred.</div>${items.map((p) => `<div class="cart-row"><div><b>${esc(p.name)} · 25 kg</b><small>${money(p.price)} per sack</small></div><div class="quantity"><button data-change="${p.id}" data-delta="-1" aria-label="Decrease quantity">−</button><input class="cart-qty" data-quantity="${p.id}" aria-label="Sacks of ${esc(p.name)}" type="number" min="1" max="${p.stock}" value="${cart[p.id]}"><button data-change="${p.id}" data-delta="1" aria-label="Increase quantity">+</button></div><b>${money(p.price * cart[p.id])}</b><button class="remove" data-remove="${p.id}" aria-label="Remove ${esc(p.name)}">×</button></div>`).join("")}<p class="form-note">${count} sacks · ${count * 25} kg total. Every listed package is a 25 kg sack.</p>${user ? `<form id="checkout"><h3>Where’s your next good meal?</h3><div class="form-grid"><label>Full name<input name="customer" value="${esc(user.name)}" autocomplete="name" required maxlength="150"></label><label>Mobile number<input name="phone" value="${esc(user.phone)}" type="tel" autocomplete="tel" placeholder="09XXXXXXXXX" required pattern="[+0-9 -]{10,16}"></label><label class="wide">Receive your order<select name="method" id="method" required><option value="" selected disabled>Choose delivery or pickup</option><option value="delivery">Local delivery + tracking · Fee by zone</option><option value="pickup">Store pickup · Free · No delivery map</option></select></label><div class="fulfillment-hint wide" id="fulfillment-hint">Choose <b>Local delivery</b> for a delivery map, or <b>Store pickup</b> to collect your sacks yourself.</div><label class="wide" id="zone-label" hidden>Delivery zone<select id="delivery-zone" name="delivery_zone" aria-label="Delivery zone">${(config.deliveryZones || []).map((z) => `<option value="${esc(z.id)}">${esc(z.name)} · ${money(z.fee_centavos / 100)}</option>`).join("")}</select></label><label class="wide" id="address-label" hidden>Delivery address<textarea name="address" maxlength="500" autocomplete="street-address">${esc(user.address)}</textarea></label><label class="wide">Payment method<select name="payment_method" id="payment-method"><option value="cash">Cash on pickup / delivery</option><option value="card">Card</option><option value="gcash">GCash</option><option value="maya">Maya</option></select></label></div><div id="payment-fields"></div><div class="bulk-offer">Wholesale savings: 10+ sacks → ₱25 off each; 25+ sacks → ₱50 off each. Sample tiers; all rice types can be combined.</div><p id="cart-discount" class="form-note"></p><div class="total"><span>Total <small id="delivery-note"></small></span><b id="checkout-total">${money(sub)}</b></div><p class="form-note">Stock is reserved after a successful order. Zone fees and bulk discounts are sample rates; final coverage requires store confirmation.</p><button class="primary checkout-button" type="submit">Place order →</button><p id="checkout-error" role="alert"></p></form>` : '<div class="empty"><h3>Keep your orders in one place.</h3><p>Sign in or create an account to check out.</p><button class="primary" id="checkout-signin">Sign in to order →</button></div>'}`
     : '<div class="empty"><h3>Your bag is waiting for something good.</h3><p>Add your favorite 25 kg sacks to get started.</p><button class="primary" id="continue-shopping">Explore the rice collection →</button></div>';
   if (!items.length) {
     $("#continue-shopping").onclick = () => $("#cart-dialog").close();
@@ -550,7 +550,7 @@ async function orderView(id) {
     const delivery = o.method === "delivery";
     $("#detail-content").innerHTML = `
       <div class="order-summary"><div><span class="eyebrow">${delivery ? "YOUR DELIVERY" : "YOUR STORE PICKUP"}</span><h3>${esc(o.id)}</h3><p>${esc(o.customer)} · ${esc(o.phone)}</p></div><div><span id="live-order-status">${badge(o.status)}</span><p class="order-summary-total">${money(o.total)}</p></div></div>
-      ${delivery ? `<section class="tracking-card"><div class="section-line"><div><h3>Your delivery map</h3><p class="form-note">Illustrated sample route · Simulation, not driver GPS</p></div><span class="live-pill"><i></i> Updates every 5s</span></div><div class="demo-notice">SIMULATED TRACKING · NOT LIVE DRIVER GPS</div><div id="delivery-map" aria-label="Simulated delivery route map"></div><div class="map-legend"><span>● Demo store</span><span>● Demo destination</span><span id="map-background-label">Local illustrated map · No external tile access</span></div><div class="delivery-progress"><div><i id="delivery-progress-bar"></i></div><b id="delivery-progress-number">0%</b></div><p id="tracking-label" role="status">Loading delivery position…</p><p id="map-tile-note" class="form-note">This illustrated demo map loads locally. No street-tile service is contacted.</p><p class="form-note">Destination below is your entered address; this fixed demonstration map does not route to it. Movement begins when the admin selects Out for delivery.</p></section>` : `<section class="pickup-card"><div class="pickup-icon">↗</div><div><h3>You chose store pickup</h3><p>You’ll collect your sacks from the store. Pickup orders do not have a delivery map.</p><p class="form-note">Status updates automatically. The store will contact you when your order is ready.</p></div></section>`}
+      ${delivery ? `<section class="tracking-card"><div class="section-line"><div><h3>Your delivery map</h3><p class="form-note">Illustrated delivery route</p></div><span class="live-pill"><i></i> Updates every 5s</span></div><div class="demo-notice">Demo tracking · Movement is generated for testing, not live driver GPS.</div><div id="delivery-map" aria-label="Simulated delivery route map"></div><div class="map-legend"><span>● Store</span><span>● Destination</span><span id="map-background-label">Local illustrated map · No external tile access</span></div><div class="delivery-progress"><div><i id="delivery-progress-bar"></i></div><b id="delivery-progress-number">0%</b></div><p id="tracking-label" role="status">Loading delivery position…</p><p id="map-tile-note" class="form-note">This illustrated map is available without external map tiles.</p><p class="form-note">Destination below is your entered address; this fixed demonstration map does not route to it. Movement begins when the admin selects Out for delivery.</p></section>` : `<section class="pickup-card"><div class="pickup-icon">↗</div><div><h3>You chose store pickup</h3><p>You’ll collect your sacks from the store. Pickup orders do not have a delivery map.</p><p class="form-note">Status updates automatically. The store will contact you when your order is ready.</p></div></section>`}
       <div class="order-info-grid"><section><h3>${delivery ? "Delivery address" : "Collection"}</h3><p>${delivery ? esc(o.address) : "Store pickup · Collection details to be confirmed"}</p><h3>Payment</h3><p>${esc(paymentName(o.payment_method))} · <span id="live-payment-status">${badge(o.payment_status)}</span></p><h3>Your sacks</h3><ul class="order-items">${o.items.map((i) => `<li><span>${i.quantity} × ${esc(i.name)} · ${i.weight} kg</span><b>${money(i.price * i.quantity)}</b></li>`).join("")}</ul></section><section><h3>Order timeline</h3><ol id="live-timeline" class="timeline"></ol><p class="form-note" id="order-last-updated"></p></section></div><div class="action-row"><button class="primary" id="detail-receipt">Print receipt</button><button class="secondary" id="refresh-order">Refresh status</button></div>`;
     $("#detail-receipt").onclick = () => receiptView(o.id);
     $("#refresh-order").onclick = () => orderView(o.id);
@@ -575,14 +575,14 @@ async function orderView(id) {
       $("#delivery-progress-number").textContent = progress + "%";
       const explanation =
         t.status === "Cancelled"
-          ? "Order cancelled. Delivery simulation stopped."
+          ? "Order cancelled. Tracking stopped."
           : t.status === "Completed"
-            ? "Order completed. Demo destination reached."
+            ? "Order completed. Destination reached."
             : t.status === "Out for delivery"
-              ? "The demo truck is moving. This is not a real GPS feed."
+              ? "The truck marker is moving along the sample route."
               : "Your map is ready. Waiting for the admin to dispatch your order.";
       $("#tracking-label").textContent =
-        `${t.status} · ${progress}% of demo route · ${explanation} Updated ${date(t.updated)}`;
+        `${t.status} · ${progress}% of sample route · ${explanation} Updated ${date(t.updated)}`;
     }
     if (delivery) {
       const tracking = await api(
@@ -607,10 +607,10 @@ async function orderView(id) {
         ).addTo(map);
         map.attributionControl.setPrefix(false);
         map.attributionControl.addAttribution(
-          "Sako illustrated demo · Not a navigation map",
+          "Sako illustrated map",
         );
         $("#map-background-label").textContent =
-          "Local illustrated map · Works without street tile access";
+          "Illustrated map";
         L.polyline(tracking.route, {
           color: "#246346",
           weight: 5,
@@ -623,7 +623,7 @@ async function orderView(id) {
           radius: 8,
         })
           .addTo(map)
-          .bindTooltip("Demo store");
+          .bindTooltip("Store");
         L.circleMarker(tracking.route.at(-1), {
           color: "#ba8239",
           fillColor: "#fff",
@@ -631,7 +631,7 @@ async function orderView(id) {
           radius: 8,
         })
           .addTo(map)
-          .bindTooltip("Demo destination");
+          .bindTooltip("Destination");
         marker = L.marker(tracking.position, {
           icon: L.divIcon({
             className: "truck-marker",
