@@ -40,7 +40,7 @@ A deployed version requires HTTPS. The prototype's browser card fields never sen
 
 **Is this a payment gateway?** No. Card, GCash, and Maya screens demonstrate successful/failed checkout outcomes. No funds move, no wallet account is accessed, and no real card details should be entered.
 
-**Where is the admin login?** Open `/admin` directly. Guests see a sign-in form, not protected dashboard data. The Dashboard navigation entry appears only after successful admin authentication; customer accounts cannot access the admin API.
+**Where is the admin login?** Use the regular Sign in form with admin@sakosupply.com and the local demo password admin123. The server assigns the admin role after verifying both credentials. The Dashboard navigation entry appears only after successful admin authentication; customer accounts cannot access the admin API.
 
 **Why might an order have no map?** Store pickup has no delivery journey. Checkout requires a deliberate pickup/delivery choice. Delivery orders show the map immediately, and the demo truck starts after admin dispatch. Both order types poll status automatically.
 

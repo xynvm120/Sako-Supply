@@ -163,6 +163,10 @@ const transaction = (f) => {
     throw e;
   }
 };
+const adminEmail = (process.env.ADMIN_EMAIL || "admin@sakosupply.com")
+  .trim()
+  .toLowerCase();
+const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
 const publicUser = (u) =>
   u
     ? {
@@ -343,7 +347,10 @@ const server = http.createServer(async (req, res) => {
           400,
           "Enter your name, a valid email, and a password of 8–128 characters.",
         );
-      if (db.prepare("SELECT id FROM users WHERE email=?").get(email))
+      if (
+        email === adminEmail ||
+        db.prepare("SELECT id FROM users WHERE email=?").get(email)
+      )
         throw fail(409, "An account already uses that email. Sign in instead.");
       const salt = randomBytes(16).toString("hex"),
         derived = (await scrypt(password, salt, 64)).toString("hex");
@@ -363,12 +370,19 @@ const server = http.createServer(async (req, res) => {
         user: publicUser(db.prepare("SELECT * FROM users WHERE id=?").get(id)),
       });
     }
-    if (p === "/api/auth/login" && method === "POST") {
+    if (["/api/auth/login", "/api/login"].includes(p) && method === "POST") {
       rateLimit(req);
       const b = await body(req),
         email = str(b.email, 254).toLowerCase();
       if (typeof b.password !== "string" || b.password.length > 128)
         throw fail(401, "Incorrect email or password.");
+      if (email === adminEmail) {
+        if (!safe(b.password, adminPassword))
+          throw fail(401, "Incorrect email or password.");
+        revoke(req);
+        setSession(res, null, "admin");
+        return send(res, 200, { admin: true, user: null });
+      }
       const u = db.prepare("SELECT * FROM users WHERE email=?").get(email);
       const derived = (
         await scrypt(b.password, u?.salt || "missing-user-timing-salt", 64)
@@ -378,20 +392,6 @@ const server = http.createServer(async (req, res) => {
       revoke(req);
       setSession(res, u.id, "customer");
       return send(res, 200, { user: publicUser(u) });
-    }
-    if (p === "/api/login" && method === "POST") {
-      rateLimit(req);
-      const b = await body(req);
-      if (
-        !safe(
-          String(b.password || ""),
-          process.env.ADMIN_PASSWORD || "sako-demo-2026",
-        )
-      )
-        throw fail(401, "Incorrect admin password.");
-      revoke(req);
-      setSession(res, null, "admin");
-      return send(res, 200, { ok: true });
     }
     if (p === "/api/logout" && method === "POST") {
       revoke(req);

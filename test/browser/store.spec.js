@@ -85,7 +85,7 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
     baseURL: "http://127.0.0.1:32189",
   });
   await admin.post("/api/login", {
-    data: { password: "browser-admin-password" },
+    data: { email: "admin@sakosupply.com", password: "browser-admin-password" },
   });
   await admin.patch("/api/admin/status", {
     data: { id: order.id, status: "Preparing" },
@@ -136,10 +136,14 @@ test("admin dashboard product management, stock, customer history, and report ex
 }) => {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/admin");
+  await page.goto("/");
+  await page.locator("#account-link").click();
   await expect(page.locator("#admin-link")).toBeHidden();
-  await page.getByLabel("Admin password").fill("browser-admin-password");
-  await page.locator("#login").getByRole("button").click();
+  await page.getByLabel("Email address").fill("admin@sakosupply.com");
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("browser-admin-password");
+  await page.locator("#customer-auth").getByRole("button").click();
   await expect(page.locator("#admin-link")).toBeVisible();
   await expect(page.locator("#admin-panel")).toContainText(
     "A good day to do business.",
@@ -182,6 +186,7 @@ test("admin dashboard product management, stock, customer history, and report ex
   await expect(row.locator("img")).not.toHaveAttribute("src", originalPhoto);
   const replacementPhoto = await row.locator("img").getAttribute("src");
   await page.reload();
+  await page.locator("#admin-link").click();
   await expect(page.locator("#admin-panel")).toContainText(
     "A good day to do business.",
   );
@@ -281,7 +286,7 @@ test("pickup orders explain why no map is shown and refresh status automatically
     baseURL: "http://127.0.0.1:32189",
   });
   await admin.post("/api/login", {
-    data: { password: "browser-admin-password" },
+    data: { email: "admin@sakosupply.com", password: "browser-admin-password" },
   });
   await admin.patch("/api/admin/status", {
     data: { id: order.id, status: "Preparing" },
@@ -343,36 +348,55 @@ test("delivery map has a local illustrated background even if street tiles are b
   await expect(page.locator(".truck-marker")).toBeInViewport();
   await page.screenshot({ path: "/tmp/sako-mobile-tracking.png" });
 });
-test('portrait product photos fit cards and details without cropping or covering labels', async ({page}) => {
-  await page.goto('/');
+test("portrait product photos fit cards and details without cropping or covering labels", async ({
+  page,
+}) => {
+  await page.goto("/");
   const image = await page.evaluate(() => {
-    const canvas=document.createElement('canvas');canvas.width=320;canvas.height=1000;
-    const ctx=canvas.getContext('2d');ctx.fillStyle='#72a73c';ctx.fillRect(0,0,320,1000);
-    ctx.fillStyle='#fff';ctx.font='30px sans-serif';ctx.fillText('TOP OF SACK',30,45);ctx.fillText('BOTTOM',30,970);
-    return canvas.toDataURL('image/png');
+    const canvas = document.createElement("canvas");
+    canvas.width = 320;
+    canvas.height = 1000;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#72a73c";
+    ctx.fillRect(0, 0, 320, 1000);
+    ctx.fillStyle = "#fff";
+    ctx.font = "30px sans-serif";
+    ctx.fillText("TOP OF SACK", 30, 45);
+    ctx.fillText("BOTTOM", 30, 970);
+    return canvas.toDataURL("image/png");
   });
-  await page.route('**/api/products',async route=>{
-    const response=await route.fetch();const products=await response.json();products[0].image=image;
-    await route.fulfill({response,json:products});
+  await page.route("**/api/products", async (route) => {
+    const response = await route.fetch();
+    const products = await response.json();
+    products[0].image = image;
+    await route.fulfill({ response, json: products });
   });
   await page.reload();
-  for(const width of [1280,390]){
-    await page.setViewportSize({width,height:844});
-    const card=page.locator('.product').first(),photo=card.locator('.rice-photo');
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    const card = page.locator(".product").first(),
+      photo = card.locator(".rice-photo");
     await expect(photo).toBeVisible();
-    const img=await photo.boundingBox(),area=await card.locator('.product-art').boundingBox(),tag=await card.locator('.tag').boundingBox(),link=await card.locator('.weight').boundingBox();
-    expect(img.y).toBeGreaterThanOrEqual(tag.y+tag.height);
-    expect(img.y+img.height).toBeLessThanOrEqual(link.y);
+    const img = await photo.boundingBox(),
+      area = await card.locator(".product-art").boundingBox(),
+      tag = await card.locator(".tag").boundingBox(),
+      link = await card.locator(".weight").boundingBox();
+    expect(img.y).toBeGreaterThanOrEqual(tag.y + tag.height);
+    expect(img.y + img.height).toBeLessThanOrEqual(link.y);
     expect(img.x).toBeGreaterThanOrEqual(area.x);
-    expect(img.x+img.width).toBeLessThanOrEqual(area.x+area.width);
-    expect(await photo.evaluate(img=>getComputedStyle(img).objectFit)).toBe('contain');
-    await card.screenshot({path:`/tmp/sako-photo-${width}.png`});
-    await card.locator('.product-art').click();
-    const detail=page.locator('#product-dialog'),detailImage=detail.locator('.rice-photo');
+    expect(img.x + img.width).toBeLessThanOrEqual(area.x + area.width);
+    expect(await photo.evaluate((img) => getComputedStyle(img).objectFit)).toBe(
+      "contain",
+    );
+    await card.screenshot({ path: `/tmp/sako-photo-${width}.png` });
+    await card.locator(".product-art").click();
+    const detail = page.locator("#product-dialog"),
+      detailImage = detail.locator(".rice-photo");
     await expect(detailImage).toBeVisible();
-    const di=await detailImage.boundingBox(),da=await detail.locator('.product-art').boundingBox();
-    expect(di.y+di.height).toBeLessThanOrEqual(da.y+da.height);
+    const di = await detailImage.boundingBox(),
+      da = await detail.locator(".product-art").boundingBox();
+    expect(di.y + di.height).toBeLessThanOrEqual(da.y + da.height);
     expect(di.y).toBeGreaterThanOrEqual(da.y);
-    await detail.getByRole('button',{name:'Close',exact:true}).click();
+    await detail.getByRole("button", { name: "Close", exact: true }).click();
   }
 });

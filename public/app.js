@@ -224,7 +224,7 @@ function authView(mode = "login") {
     return;
   }
   $("#account-content").innerHTML =
-    `<div class="tabs"><button id="login-tab" class="${mode === "login" ? "chosen" : ""}">Sign in</button><button id="register-tab" class="${mode === "register" ? "chosen" : ""}">Create account</button></div><p>Order 25 kg sacks and keep all your receipts in one place.</p><form id="customer-auth">${mode === "register" ? '<label>Full name<input name="name" autocomplete="name" required maxlength="150"></label>' : ""}<label>Email address<input name="email" type="email" autocomplete="email" required maxlength="254"></label><label>Password<input name="password" type="password" autocomplete="${mode === "register" ? "new-password" : "current-password"}" minlength="8" maxlength="128" required></label><p class="form-note">${mode === "register" ? "Use at least 8 characters. For this demo, use fictional contact information." : "Welcome back. Your orders are saved to your account."}</p><button class="primary checkout-button">${mode === "register" ? "Create account" : "Sign in"} →</button><p id="auth-error" role="alert"></p></form>`;
+    `<div class="auth-intro"><span class="eyebrow">WELCOME TO YOUR ONLINE BIGASAN</span><h3>Good rice. Great company.</h3><p>One sign-in for customers and store administrators.</p></div><div class="tabs"><button id="login-tab" class="${mode === "login" ? "chosen" : ""}">Sign in</button><button id="register-tab" class="${mode === "register" ? "chosen" : ""}">Create account</button></div><p>Order 25 kg sacks and keep all your receipts in one place.</p><form id="customer-auth">${mode === "register" ? '<label>Full name<input name="name" autocomplete="name" required maxlength="150"></label>' : ""}<label>Email address<input name="email" type="email" autocomplete="email" required maxlength="254"></label><label>Password<input name="password" type="password" autocomplete="${mode === "register" ? "new-password" : "current-password"}" minlength="8" maxlength="128" required></label><p class="form-note">${mode === "register" ? "Use at least 8 characters. For this demo, use fictional contact information." : "Welcome back. Your orders are saved to your account."}</p><button class="primary checkout-button">${mode === "register" ? "Create account" : "Sign in"} →</button><p id="auth-error" role="alert"></p></form>`;
   $("#login-tab").onclick = () => authView("login");
   $("#register-tab").onclick = () => authView("register");
   $("#customer-auth").onsubmit = async (e) => {
@@ -232,17 +232,19 @@ function authView(mode = "login") {
     const btn = e.target.querySelector("button");
     btn.disabled = true;
     try {
-      user = (
-        await post(
-          "/api/auth/" + mode,
-          Object.fromEntries(new FormData(e.target)),
-        )
-      ).user;
-      isAdmin = false;
+      const result = await post(
+        "/api/auth/" + mode,
+        Object.fromEntries(new FormData(e.target)),
+      );
+      user = result.user;
+      isAdmin = result.admin === true;
       accountLabel();
       $("#account-dialog").close();
       toast(mode === "register" ? "Your account is ready" : "Welcome back");
-      if ($("#cart-dialog").open) cartView();
+      if (isAdmin) {
+        $("#cart-dialog").close();
+        await adminView("overview");
+      } else if ($("#cart-dialog").open) cartView();
     } catch (e) {
       $("#auth-error").textContent = e.message;
     } finally {
@@ -583,21 +585,8 @@ async function adminView(tab = adminTab) {
   adminTab = tab;
   show("#admin-dialog");
   if (!isAdmin) {
-    $("#admin-dialog").classList.remove("dashboard-dialog");
-    $("#admin-content").innerHTML =
-      '<p>Sign in to manage your wholesale store.</p><form id="login"><label>Admin password<input type="password" name="password" required autocomplete="current-password"></label><button class="primary checkout-button">Sign in →</button><p id="login-error" role="alert"></p></form><p class="form-note">Local demo: sako-demo-2026. Replace ADMIN_PASSWORD before public use.</p>';
-    $("#login").onsubmit = async (e) => {
-      e.preventDefault();
-      try {
-        await post("/api/login", Object.fromEntries(new FormData(e.target)));
-        isAdmin = true;
-        user = null;
-        accountLabel();
-        await adminView("overview");
-      } catch (e) {
-        $("#login-error").textContent = e.message;
-      }
-    };
+    $("#admin-dialog").close();
+    authView("login");
     return;
   }
   $("#admin-dialog").classList.add("dashboard-dialog");

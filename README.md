@@ -33,7 +33,7 @@ Use fictional contact information for the defense. Customer passwords are salted
 
 ## Admin dashboard
 
-Open **http://localhost:3000/admin** to sign in. The public storefront does not show an admin entry. After administrator authentication, a **Dashboard** link appears in the navigation. Customer accounts never see it. The local demonstration password is **`sako-demo-2026`**. Set `ADMIN_PASSWORD` to replace it. Admin and customer sign-ins use separate roles, but switching roles in the same browser replaces the active session; use an incognito window or another browser for a simultaneous demo.
+Click the regular **Sign in** button. Admin and customer accounts use the same email/password form. Demo admin email: **`admin@sakosupply.com`**; password: **`admin123`**. Successful admin sign-in opens the dashboard and reveals its navigation link. Customer accounts never see admin controls. `ADMIN_EMAIL` and `ADMIN_PASSWORD` can override these demo defaults. `/admin` remains an optional shortcut to the same sign-in form; it is no longer necessary. Use an incognito window or another browser for simultaneous customer/admin demonstrations.
 
 - **Overview:** pending orders, low stock (10 or fewer sacks), available sacks, recent active orders, and today's completed order totals.
 - **Orders:** search by reference/name/phone, filter status, view details, print receipts, record cash collection, and progress orders.
@@ -119,7 +119,7 @@ If you already have a Chromium installation, set `SAKO_CHROMIUM` to its executab
 2. Show the 25 kg catalog and product details. Add five sacks.
 3. Register a fictional customer; select delivery and simulate a card or wallet payment.
 4. Show the order reference, payment status, and printable receipt.
-5. In a second/incognito browser, open **http://localhost:3000/admin** and sign in as admin, prepare the order, then dispatch it.
+5. In a second/incognito browser, click **Sign in** and use the demo admin email/password, prepare the order, then dispatch it.
 6. Keep the customer's order details open; the status and moving **simulated** map update automatically.
 7. Complete the order and show its report entry; export a CSV.
 8. Create a second order, cancel it, and show stock restoration and the inventory audit log.

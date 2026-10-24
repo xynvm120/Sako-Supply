@@ -6,14 +6,14 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 const root = process.cwd();
-async function start(dir, port) {
+async function start(dir, port, password = "test-password") {
   const child = spawn(process.execPath, ["server.js"], {
     cwd: root,
     env: {
       ...process.env,
       PORT: String(port),
       DATA_DIR: dir,
-      ADMIN_PASSWORD: "test-password",
+      ADMIN_PASSWORD: password,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -121,7 +121,10 @@ test("wholesale customer and admin workflow", async (t) => {
         401,
       );
       adminCookie = (
-        await call("/api/login", "POST", { password: "test-password" })
+        await call("/api/login", "POST", {
+          email: "admin@sakosupply.com",
+          password: "test-password",
+        })
       ).cookie;
       const inspect = new DatabaseSync(path.join(dir, "sako.sqlite"));
       const user = inspect
@@ -673,12 +676,63 @@ test("legacy database migration preserves historical five-kilogram orders", asyn
     const call = client(32188);
     assert.ok((await call("/api/products")).data.every((p) => p.weight === 25));
     const admin = (
-      await call("/api/login", "POST", { password: "test-password" })
+      await call("/api/login", "POST", {
+        email: "admin@sakosupply.com",
+        password: "test-password",
+      })
     ).cookie;
     const orders = (await call("/api/admin/orders", "GET", undefined, admin))
       .data;
     assert.equal(orders[0].items[0].weight, 5);
     assert.equal(orders[0].total, 310);
+  } finally {
+    await stop(child);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("default admin signs in through shared email/password login", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "sako-admin-"));
+  const child = await start(dir, 32190, "");
+  const call = client(32190);
+  try {
+    assert.equal(
+      (
+        await call("/api/auth/register", "POST", {
+          name: "Fake Admin",
+          email: "admin@sakosupply.com",
+          password: "different-pass",
+        })
+      ).status,
+      409,
+    );
+    assert.equal(
+      (
+        await call("/api/auth/login", "POST", {
+          email: "admin@sakosupply.com",
+          password: "incorrect",
+        })
+      ).status,
+      401,
+    );
+    const login = await call("/api/auth/login", "POST", {
+      email: "ADMIN@SAKOSUPPLY.COM",
+      password: "admin123",
+    });
+    assert.equal(login.status, 200);
+    assert.equal(login.data.admin, true);
+    assert.equal(
+      (await call("/api/admin/orders", "GET", undefined, login.cookie)).status,
+      200,
+    );
+    assert.equal(
+      (await call("/api/orders", "GET", undefined, login.cookie)).status,
+      401,
+    );
+    assert.equal(
+      (await call("/api/login", "POST", { password: "admin123" })).status,
+      401,
+    );
   } finally {
     await stop(child);
     rmSync(dir, { recursive: true, force: true });
