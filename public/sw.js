@@ -1,4 +1,4 @@
-const CACHE = "sako-shell-v4";
+const CACHE = "sako-shell-v5";
 const SHELL = [
   "/",
   "/app.js",
@@ -21,7 +21,6 @@ const SHELL = [
   "/assets/app-icon-512.png",
   "/manifest.webmanifest",
   "/assets/rice-fields.svg",
-  "/assets/demo-map.svg",
 ];
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));

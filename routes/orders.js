@@ -1,3 +1,4 @@
+import { trackingDTO } from "../services/tracking.js";
 import { db, transaction } from "../db.js";
 import { randomBytes } from "node:crypto";
 import { session, requireCustomer } from "../auth.js";
@@ -230,40 +231,7 @@ export async function ordersRoute({ p, method, req, res, send, orderDTO }) {
     if (!s || !o || (s.role !== "admin" && o.user_id !== s.user_id))
       throw fail(404, "Order not found.");
     if (p.endsWith("/tracking")) {
-      const points = [
-        [6.5004, 124.8451],
-        [6.5012, 124.8456],
-        [6.5024, 124.8464],
-        [6.5035, 124.8476],
-        [6.5047, 124.8485],
-        [6.506, 124.8502],
-        [6.5075, 124.8521],
-      ];
-      const seconds = o.dispatch_at
-        ? Math.max(0, (Date.now() - Date.parse(o.dispatch_at)) / 1000)
-        : 0;
-      const progress =
-        o.status === "Completed"
-          ? 1
-          : o.status === "Out for delivery"
-            ? Math.min(seconds / 180, 0.95)
-            : 0;
-      const pos = progress * (points.length - 1),
-        i = Math.min(Math.floor(pos), points.length - 2),
-        t = pos - i;
-      return send(res, 200, {
-        demo: true,
-        available: o.method === "delivery",
-        status: o.status,
-        progress,
-        route: points,
-        position: [
-          points[i][0] + (points[i + 1][0] - points[i][0]) * t,
-          points[i][1] + (points[i + 1][1] - points[i][1]) * t,
-        ],
-        updated: now(),
-        note: "Simulated route in Koronadal for demonstration. Not driver GPS or your entered address.",
-      });
+      return send(res, 200, trackingDTO(o));
     }
     return send(res, 200, orderDTO(o));
   }

@@ -266,7 +266,7 @@ function reviewOrder(data, items) {
   const dialog = $("#review-dialog");
   const quote = previewPricing(items, data.method, data.delivery_zone);
   const zone = (config.deliveryZones || []).find(z => z.id === data.delivery_zone);
-  $("#review-content").innerHTML = `<p>Check your details before confirming. Your order is submitted only after you confirm.</p><dl class="review-details"><dt>Customer</dt><dd>${esc(data.customer)}</dd><dt>Mobile number</dt><dd>${esc(data.phone)}</dd><dt>Receive your order</dt><dd>${data.method === "delivery" ? `Delivery · ${esc(zone?.name || "Selected zone")}` : "Store pickup"}</dd>${data.method === "delivery" ? `<dt>Delivery address</dt><dd>${esc(data.address)}</dd>` : ""}<dt>Payment method</dt><dd>${esc(paymentName(data.payment_method))}</dd></dl><div class="table-scroll"><table class="admin-table"><caption>Rice sacks in your order</caption><thead><tr><th>Product</th><th>Sacks</th><th>Price / sack</th><th>Subtotal</th></tr></thead><tbody>${items.map(p => `<tr><td>${esc(p.name)} · 25 kg</td><td>${cart[p.id]}</td><td>${money((p.price_centavos ?? Math.round(p.price * 100)) / 100)}</td><td>${money((p.price_centavos ?? Math.round(p.price * 100)) * cart[p.id] / 100)}</td></tr>`).join("")}</tbody></table></div><dl class="review-totals"><dt>Rice subtotal</dt><dd>${money(quote.subtotal / 100)}</dd><dt>Bulk discount</dt><dd>−${money(quote.discount / 100)}</dd><dt>Delivery fee</dt><dd>${money(quote.fee / 100)}</dd><dt>Total</dt><dd><strong>${money(quote.total / 100)}</strong></dd></dl><p class="form-note">Prices and availability are checked by the server when you confirm. Electronic payments and tracking are demonstrations.</p><div class="action-row"><button type="button" class="secondary" id="review-edit">Back to edit</button><button type="button" class="primary" id="review-confirm">Confirm and place order</button></div>`;
+  $("#review-content").innerHTML = `<p>Check your details before confirming. Your order is submitted only after you confirm.</p><dl class="review-details"><dt>Customer</dt><dd>${esc(data.customer)}</dd><dt>Mobile number</dt><dd>${esc(data.phone)}</dd><dt>Receive your order</dt><dd>${data.method === "delivery" ? `Delivery · ${esc(zone?.name || "Selected zone")}` : "Store pickup"}</dd>${data.method === "delivery" ? `<dt>Delivery address</dt><dd>${esc(data.address)}</dd>` : ""}<dt>Payment method</dt><dd>${esc(paymentName(data.payment_method))}</dd></dl><div class="table-scroll"><table class="admin-table"><caption>Rice sacks in your order</caption><thead><tr><th>Product</th><th>Sacks</th><th>Price / sack</th><th>Subtotal</th></tr></thead><tbody>${items.map(p => `<tr><td>${esc(p.name)} · 25 kg</td><td>${cart[p.id]}</td><td>${money((p.price_centavos ?? Math.round(p.price * 100)) / 100)}</td><td>${money((p.price_centavos ?? Math.round(p.price * 100)) * cart[p.id] / 100)}</td></tr>`).join("")}</tbody></table></div><dl class="review-totals"><dt>Rice subtotal</dt><dd>${money(quote.subtotal / 100)}</dd><dt>Bulk discount</dt><dd>−${money(quote.discount / 100)}</dd><dt>Delivery fee</dt><dd>${money(quote.fee / 100)}</dd><dt>Total</dt><dd><strong>${money(quote.total / 100)}</strong></dd></dl><p class="form-note">Prices and availability are checked by the server when you confirm. Electronic payments are demonstrations. Driver location requires active sharing.</p><div class="action-row"><button type="button" class="secondary" id="review-edit">Back to edit</button><button type="button" class="primary" id="review-confirm">Confirm and place order</button></div>`;
   return new Promise(resolve => {
     let confirmed = false;
     dialog.addEventListener("close", () => {
@@ -462,7 +462,7 @@ function cartView() {
       ? `(includes ${money(quote.fee / 100)} delivery)`
       : "";
     $("#fulfillment-hint").textContent = delivery
-      ? "Delivery selected: choose your zone. Your illustrated demo map appears immediately; the truck moves after admin dispatch."
+      ? "Delivery selected: choose your zone. Your street map opens after ordering. Driver location appears when the assigned driver shares it."
       : "Choose delivery for tracking, or pickup to collect your sacks yourself.";
   };
   $("#method").onchange = updateQuote;
@@ -507,7 +507,7 @@ function cartView() {
       cart = {};
       save();
       $("#cart-content").innerHTML =
-        `<div class="success"><div style="font-size:50px">✓</div><h3>Your sacks are reserved.</h3><p>Order reference</p><strong>${esc(result.id)}</strong><p>${money(result.total)} · ${esc(paymentName(result.payment_method))}</p>${badge(result.payment_status)}<p class="form-note">${result.method === "delivery" ? "Delivery selected — open your map below. The truck moves after admin dispatch." : "Store pickup selected — no delivery map. Collect your order when it is ready."} Demo order only. No funds have moved.</p><div class="action-row"><button class="primary" id="success-receipt">View & print receipt</button><button class="secondary" id="success-track">${result.method === "delivery" ? "Open delivery map" : "View pickup order"}</button></div></div>`;
+        `<div class="success"><div style="font-size:50px">✓</div><h3>Your sacks are reserved.</h3><p>Order reference</p><strong>${esc(result.id)}</strong><p>${money(result.total)} · ${esc(paymentName(result.payment_method))}</p>${badge(result.payment_status)}<p class="form-note">${result.method === "delivery" ? "Delivery selected — open your map below. Driver location appears when the assigned driver shares it." : "Store pickup selected — no delivery map. Collect your order when it is ready."} Demo order only. No funds have moved.</p><div class="action-row"><button class="primary" id="success-receipt">View & print receipt</button><button class="secondary" id="success-track">${result.method === "delivery" ? "Open delivery map" : "View pickup order"}</button></div></div>`;
       $("#success-receipt").onclick = () => receiptView(result.id);
       $("#success-track").onclick = () => orderView(result.id);
       await refresh();
@@ -668,7 +668,7 @@ async function orderView(id) {
     const delivery = o.method === "delivery";
     $("#detail-content").innerHTML = `
       <div class="order-summary"><div><span class="eyebrow">${delivery ? "YOUR DELIVERY" : "YOUR STORE PICKUP"}</span><h3>${esc(o.id)}</h3><p>${esc(o.customer)} · ${esc(o.phone)}</p></div><div><span id="live-order-status">${badge(o.status)}</span><p class="order-summary-total">${money(o.total)}</p></div></div>
-      ${delivery ? `<section class="tracking-card"><div class="section-line"><div><h3>Your delivery map</h3><p class="form-note">Illustrated delivery route</p></div><span class="live-pill"><i></i> Updates every 5s</span></div><div class="demo-notice">Demo tracking · Movement is generated for testing, not live driver GPS.</div><div id="delivery-map" aria-label="Simulated delivery route map"></div><div class="map-legend"><span>● Store</span><span>● Destination</span><span id="map-background-label">Local illustrated map · No external tile access</span></div><div class="delivery-progress"><div><i id="delivery-progress-bar"></i></div><b id="delivery-progress-number">0%</b></div><p id="tracking-label" role="status">Loading delivery position…</p><p id="map-tile-note" class="form-note">This illustrated map is available without external map tiles.</p><p class="form-note">Destination below is your entered address; this fixed demonstration map does not route to it. Movement begins when the admin selects Out for delivery.</p></section>` : `<section class="pickup-card"><div class="pickup-icon">↗</div><div><h3>You chose store pickup</h3><p>You’ll collect your sacks from the store. Pickup orders do not have a delivery map.</p><p class="form-note">Status updates automatically. The store will contact you when your order is ready.</p></div></section>`}
+      ${delivery ? `<section class="tracking-card"><div class="section-line"><div><h3>Your delivery map</h3><p class="form-note">Street map · Driver device location</p></div><span class="live-pill"><i></i> Checks every 5s</span></div><div id="delivery-map" aria-label="Delivery street map"></div><p id="tracking-label" role="status">Checking for driver location…</p><p id="map-tile-note" class="form-note">Street tiles require internet. Waiting for map tiles…</p><p class="form-note">The marker appears only when the assigned driver shares a location. Stale positions are labelled. The address below is not automatically geocoded; no route or arrival percentage is guessed.</p>${isAdmin ? `<div class="action-row"><button class="secondary" id="driver-issue">Issue driver link</button><button class="secondary" id="driver-revoke">Revoke driver link</button></div><div id="driver-link-result" role="status"></div>` : ""}</section>` : `<section class="pickup-card"><div class="pickup-icon">↗</div><div><h3>You chose store pickup</h3><p>You’ll collect your sacks from the store. Pickup orders do not have a delivery map.</p><p class="form-note">Status updates automatically. The store will contact you when your order is ready.</p></div></section>`}
       <div class="order-info-grid"><section><h3>${delivery ? "Delivery address" : "Collection"}</h3><p>${delivery ? esc(o.address) : "Store pickup · Collection details to be confirmed"}</p><h3>Payment</h3><p>${esc(paymentName(o.payment_method))} · <span id="live-payment-status">${badge(o.payment_status)}</span></p><h3>Your sacks</h3><ul class="order-items">${o.items.map((i) => `<li><span>${i.quantity} × ${esc(i.name)} · ${i.weight} kg</span><b>${money(i.price * i.quantity)}</b></li>`).join("")}</ul></section><section><h3>Order timeline</h3><ol id="live-timeline" class="timeline"></ol><p class="form-note" id="order-last-updated"></p></section></div><div class="action-row"><button class="primary" id="detail-receipt">Print receipt</button><button class="secondary" id="refresh-order">Refresh status</button></div>`;
     $("#detail-receipt").onclick = () => receiptView(o.id);
     $("#refresh-order").onclick = () => orderView(o.id);
@@ -686,94 +686,50 @@ async function orderView(id) {
         "Updated " + date(new Date().toISOString());
     }
     updateOrder(o);
+    let accuracyCircle = null;
+    let centered = false;
     function updateMap(t) {
-      marker?.setLatLng(t.position);
-      const progress = Math.round(t.progress * 100);
-      $("#delivery-progress-bar").style.width = progress + "%";
-      $("#delivery-progress-number").textContent = progress + "%";
-      const explanation =
-        t.status === "Cancelled"
-          ? "Order cancelled. Tracking stopped."
-          : t.status === "Completed"
-            ? "Order completed. Destination reached."
-            : t.status === "Out for delivery"
-              ? "The truck marker is moving along the sample route."
-              : "Your map is ready. Waiting for the admin to dispatch your order.";
-      $("#tracking-label").textContent =
-        `${t.status} · ${progress}% of sample route · ${explanation} Updated ${date(t.updated)}`;
+      $("#tracking-label").textContent = `${t.status} · ${t.note}${t.updated ? ` Last received ${date(t.updated)} · accuracy approximately ${Math.round(t.accuracy)} m · ${t.position[0].toFixed(5)}, ${t.position[1].toFixed(5)}.` : ""}`;
+      if(!map) return;
+      if(t.position) {
+        if(!marker) marker = L.marker(t.position, {icon:L.divIcon({className:"truck-marker",html:"🚚",iconSize:[36,36],iconAnchor:[18,18]})}).addTo(map);
+        marker.setLatLng(t.position).setOpacity(t.stale ? 0.45 : 1);
+        if(!accuracyCircle) accuracyCircle=L.circle(t.position,{radius:t.accuracy,color:"#246346",fillOpacity:0.08}).addTo(map);
+        accuracyCircle.setLatLng(t.position).setRadius(t.accuracy);
+        if(!centered || !map.getBounds().contains(t.position)) { map.setView(t.position,16);centered=true; }
+      } else {
+        if(marker) { marker.remove();marker=null; }
+        if(accuracyCircle) { accuracyCircle.remove();accuracyCircle=null; }
+      }
     }
     if (delivery) {
-      const tracking = await api(
-        `/api/orders/${encodeURIComponent(id)}/tracking`,
-      );
-      if (generation !== trackingGeneration || !$("#detail-dialog").open)
-        return;
-      if (window.L) {
-        map = L.map("delivery-map", { scrollWheelZoom: false }).setView(
-          tracking.route[0],
-          15,
-        );
-        map.createPane("offlineBasemap");
-        map.getPane("offlineBasemap").style.zIndex = 199;
-        L.imageOverlay(
-          "/assets/demo-map.svg",
-          [
-            [6.498, 124.842],
-            [6.51, 124.855],
-          ],
-          { pane: "offlineBasemap", interactive: false },
-        ).addTo(map);
-        map.attributionControl.setPrefix(false);
-        map.attributionControl.addAttribution(
-          "Sako illustrated map",
-        );
-        $("#map-background-label").textContent =
-          "Illustrated map";
-        L.polyline(tracking.route, {
-          color: "#246346",
-          weight: 5,
-          dashArray: "9 7",
-        }).addTo(map);
-        L.circleMarker(tracking.route[0], {
-          color: "#246346",
-          fillColor: "#fff",
-          fillOpacity: 1,
-          radius: 8,
-        })
-          .addTo(map)
-          .bindTooltip("Store");
-        L.circleMarker(tracking.route.at(-1), {
-          color: "#ba8239",
-          fillColor: "#fff",
-          fillOpacity: 1,
-          radius: 8,
-        })
-          .addTo(map)
-          .bindTooltip("Destination");
-        marker = L.marker(tracking.position, {
-          icon: L.divIcon({
-            className: "truck-marker",
-            html: "🚚",
-            iconSize: [36, 36],
-            iconAnchor: [18, 18],
-          }),
-        }).addTo(map);
-        map.fitBounds(tracking.route, { padding: [45, 45] });
-        mapResizeObserver = new ResizeObserver(() => {
-          if (map && generation === trackingGeneration) {
-            map.invalidateSize({ animate: false });
-            map.fitBounds(tracking.route, {
-              padding: [30, 30],
-              animate: false,
-            });
-          }
-        });
-        mapResizeObserver.observe($("#delivery-map"));
-        setTimeout(() => map?.invalidateSize(), 100);
-      } else {
-        $("#delivery-map").innerHTML =
-          '<div class="map-unavailable"><img src="/assets/demo-map.svg" alt="Illustrated demonstration area"><span>Interactive map could not load. Run npm install, restart the server, and refresh. Status and progress still update below.</span></div>';
+      if(isAdmin) {
+        $("#driver-issue").onclick=async()=>{
+          try {
+            const access=await post("/api/admin/driver-access",{id:o.id});
+            const result=$("#driver-link-result");
+            result.replaceChildren();
+            const note=document.createElement("p");note.textContent="Private driver link (12 hours). Give only to the assigned driver. Issuing another replaces the previous link.";
+            const link=document.createElement("a");link.href=access.path;link.textContent=new URL(access.path,location.origin).href;link.target="_blank";link.rel="noopener noreferrer";link.className="private-driver-link";
+            result.append(note,link);
+          } catch(e) { $("#driver-link-result").textContent=e.message; }
+        };
+        $("#driver-revoke").onclick=async()=>{
+          try { await post("/api/admin/driver-access",{id:o.id},"DELETE");$("#driver-link-result").textContent="Driver link revoked and last location removed."; }
+          catch(e) { $("#driver-link-result").textContent=e.message; }
+        };
       }
+      const tracking = await api(`/api/orders/${encodeURIComponent(id)}/tracking`);
+      if (generation !== trackingGeneration || !$("#detail-dialog").open) return;
+      if(window.L) {
+        map=L.map("delivery-map",{scrollWheelZoom:false}).setView(config.map.center,13);
+        L.tileLayer(config.map.tiles,{attribution:config.map.attribution,maxZoom:19,referrerPolicy:"strict-origin-when-cross-origin"})
+          .on("tileerror",()=>{ if(generation===trackingGeneration && $("#map-tile-note")) $("#map-tile-note").textContent="Street map tiles could not load. Check your connection or ask the administrator to configure MapTiler. GPS status below still updates."; })
+          .on("tileload",()=>{ if(generation===trackingGeneration && $("#map-tile-note")) $("#map-tile-note").textContent="Street map loaded. Location sharing depends on the assigned driver's device."; })
+          .addTo(map);
+        mapResizeObserver=new ResizeObserver(()=>{if(map && generation===trackingGeneration) map.invalidateSize({animate:false});});
+        mapResizeObserver.observe($("#delivery-map"));
+      } else $("#delivery-map").textContent="Map library could not load. Run npm install and restart the server. Driver GPS status remains available below.";
       updateMap(tracking);
     }
     trackingTimer = setInterval(async () => {
@@ -790,6 +746,10 @@ async function orderView(id) {
         updateOrder(latest);
         if (t) updateMap(t);
       } catch (e) {
+        if (generation === trackingGeneration && delivery && $("#tracking-label")) {
+          $("#tracking-label").textContent="Connection interrupted. Any last driver location may be outdated. Reconnecting…";
+          marker?.setOpacity(0.45);
+        }
         if (generation === trackingGeneration && $("#order-last-updated"))
           $("#order-last-updated").textContent =
             "Connection interrupted. Retrying automatically…";

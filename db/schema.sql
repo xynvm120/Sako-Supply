@@ -50,3 +50,17 @@ CREATE TABLE IF NOT EXISTS email_verifications (
  token_hash TEXT NOT NULL UNIQUE,
  expires INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS driver_access (
+ order_id TEXT PRIMARY KEY REFERENCES orders(id),
+ token_hash TEXT NOT NULL UNIQUE,
+ expires INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS driver_locations (
+ order_id TEXT PRIMARY KEY REFERENCES orders(id),
+ latitude REAL NOT NULL CHECK(latitude BETWEEN -90 AND 90),
+ longitude REAL NOT NULL CHECK(longitude BETWEEN -180 AND 180),
+ accuracy REAL NOT NULL CHECK(accuracy>=0),
+ observed INTEGER NOT NULL,
+ updated INTEGER NOT NULL
+);

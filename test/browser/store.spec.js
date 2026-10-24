@@ -1,5 +1,10 @@
 import { test, expect } from "@playwright/test";
 
+// Stub public tiles in automated tests; this does not verify live provider availability.
+test.beforeEach(async ({page}) => {
+  await page.route('https://tile.openstreetmap.org/**',route=>route.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64')}));
+});
+
 test("customer wholesale purchase, demo card, receipt printing, and delivery map", async ({
   page,
   playwright,
@@ -81,7 +86,7 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
     .click();
   await cart.getByRole("button", { name: "Open delivery map" }).click();
   await expect(page.locator("#detail-content")).toContainText(
-    "Demo tracking",
+    "Driver device location",
   );
   await expect(page.locator(".leaflet-container")).toBeVisible();
   const admin = await playwright.request.newContext({
@@ -96,8 +101,8 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
   await admin.patch("/api/admin/status", {
     data: { id: order.id, status: "Out for delivery" },
   });
-  await expect(page.locator("#tracking-label")).toContainText(
-    "Out for delivery",
+  await expect(page.locator("#tracking-label")).toHaveText(
+    /^Out for delivery/,
     { timeout: 12000 },
   );
   await expect(page.locator("#live-order-status")).toContainText(
@@ -106,15 +111,13 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
   await expect(page.locator("#live-timeline")).toContainText(
     "Out for delivery",
   );
-  await expect(page.locator("img.leaflet-image-layer")).toBeVisible();
-  const first = (
-    await (await admin.get(`/api/orders/${order.id}/tracking`)).json()
-  ).progress;
-  await page.waitForTimeout(1100);
-  const second = (
-    await (await admin.get(`/api/orders/${order.id}/tracking`)).json()
-  ).progress;
-  expect(second).toBeGreaterThan(first);
+  await expect(page.locator("#tracking-label")).toContainText("Waiting for the driver");
+  const issued = await admin.post('/api/admin/driver-access',{data:{id:order.id}});
+  const access = await issued.json();
+  const token = access.path.split('#')[1];
+  await admin.post('/api/driver/location',{headers:{Authorization:'Bearer '+token},data:{latitude:6.503,longitude:124.848,accuracy:12,observed:Date.now()}});
+  await expect(page.locator('.truck-marker')).toBeVisible({timeout:12000});
+  await expect(page.locator('#tracking-label')).toContainText('Latest location received',{timeout:12000});
   await page.locator("#delivery-map").scrollIntoViewIfNeeded();
   await page.screenshot({ path: "/tmp/sako-tracking.png" });
   await admin.dispose();
@@ -317,7 +320,7 @@ test("pickup orders explain why no map is shown and refresh status automatically
   );
   await admin.dispose();
 });
-test("delivery map works locally without external tile access", async ({
+test("street tile failure shows an error without invented driver coordinates", async ({
   page,
 }) => {
   await page.route("https://tile.openstreetmap.org/**", (route) =>
@@ -345,16 +348,10 @@ test("delivery map works locally without external tile access", async ({
   await page.locator("#orders-link").click();
   await page.locator("#orders-content [data-order]").click();
   await expect(page.locator("#delivery-map")).toBeVisible();
-  await expect(page.locator("img.leaflet-image-layer")).toHaveAttribute(
-    "src",
-    "/assets/demo-map.svg",
-  );
-  await expect(page.locator("img.leaflet-image-layer")).toBeVisible();
-  await expect(page.locator("#map-tile-note")).toBeVisible();
-
-  await expect(page.locator("#tracking-label")).toContainText(
-    "Waiting for the admin",
-  );
+  await expect(page.locator('img.leaflet-image-layer')).toHaveCount(0);
+  await expect(page.locator('#map-tile-note')).toContainText('could not load');
+  await expect(page.locator('#tracking-label')).toContainText('only while Out for delivery');
+  await expect(page.locator('.truck-marker')).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator("#delivery-map")).toBeVisible();
   expect(
@@ -363,7 +360,7 @@ test("delivery map works locally without external tile access", async ({
     ),
   ).toBe(true);
   await page.locator("#delivery-map").scrollIntoViewIfNeeded();
-  await expect(page.locator(".truck-marker")).toBeInViewport();
+  await expect(page.locator(".truck-marker")).toHaveCount(0);
   await page.screenshot({ path: "/tmp/sako-mobile-tracking.png" });
 });
 test("portrait product photos fit cards and details without cropping or covering labels", async ({
@@ -762,4 +759,42 @@ test("password visibility and matching confirmations protect signup and reset", 
     await page.locator('#customer-auth button.primary').click();
     await expect(page.locator('#account-dialog')).not.toBeVisible();
   } finally { await administrator.dispose(); }
+});
+
+test('assigned driver explicitly shares browser GPS and can stop or be revoked',async({page,playwright,browser})=>{
+  await page.goto('/');
+  await page.request.post('/api/auth/register',{data:{name:'Driver test buyer',email:'driver-test@example.test',password:'driver-test-password'}});
+  const created=await page.request.post('/api/orders',{data:{customer:'Driver test buyer',phone:'09123456789',address:'Test address',method:'delivery',payment_method:'cash',items:[{id:1,quantity:1}]}});
+  const order=await created.json();
+  const admin=await playwright.request.newContext({baseURL:'http://127.0.0.1:32189'});
+  const driverContext=await browser.newContext({permissions:['geolocation'],geolocation:{latitude:6.505,longitude:124.85,accuracy:10}});
+  try {
+    await admin.post('/api/auth/login',{data:{email:'admin@sakosupply.com',password:'browser-admin-password'}});
+    for(const status of ['Preparing','Out for delivery']) await admin.patch('/api/admin/status',{data:{id:order.id,status}});
+    await page.request.post('/api/auth/login',{data:{email:'admin@sakosupply.com',password:'browser-admin-password'}});
+    await page.reload();
+    await page.locator('#admin-link').click();
+    await page.getByRole('button',{name:'Orders',exact:true}).click();
+    await page.locator('#admin-panel tr').filter({hasText:order.id}).getByRole('button',{name:'View',exact:true}).click();
+    await page.getByRole('button',{name:'Issue driver link',exact:true}).click();
+    await expect(page.locator('.private-driver-link')).toBeVisible();
+    const access={path:await page.locator('.private-driver-link').getAttribute('href')};
+    const driver=await driverContext.newPage();
+    await driver.goto('http://127.0.0.1:32189'+access.path);
+    await expect(driver.locator('#driver-order')).toContainText(order.id);
+    await expect(driver.locator('#driver-start')).toBeDisabled();
+    expect((await (await page.request.get(`/api/orders/${order.id}/tracking`)).json()).position).toBeNull();
+    await driver.getByRole('checkbox').check();
+    await driver.getByRole('button',{name:'Start sharing location'}).click();
+    await expect(driver.locator('#driver-status')).toContainText('Sharing location with');
+    const tracking=await (await page.request.get(`/api/orders/${order.id}/tracking`)).json();
+    expect(tracking.position).toEqual([6.505,124.85]);
+    expect(tracking.accuracy).toBe(10);
+    await expect(driver).toHaveURL(/\/driver$/);
+    await driver.getByRole('button',{name:'Stop sharing',exact:true}).click();
+    await expect.poll(async()=> (await (await page.request.get(`/api/orders/${order.id}/tracking`)).json()).position).toBeNull();
+    await admin.delete('/api/admin/driver-access',{data:{id:order.id}});
+    await expect(driver.locator('#driver-order')).toContainText('Invalid or expired',{timeout:12000});
+    await expect(driver.locator('#driver-start')).toBeDisabled();
+  } finally {await driverContext.close();await admin.dispose();}
 });

@@ -291,7 +291,7 @@ test("wholesale customer and admin workflow", async (t) => {
       },
     );
     await t.test(
-      "status transitions, payment collection and demo route",
+      "status transitions, payment collection and awaiting driver GPS",
       async () => {
         assert.equal(
           (
@@ -324,9 +324,10 @@ test("wholesale customer and admin workflow", async (t) => {
             userCookie,
           )
         ).data;
-        assert.equal(track.demo, true);
+        assert.equal(track.demo, false);
         assert.equal(track.available, true);
-        assert.ok(track.route.length > 2);
+        assert.equal(track.position, null);
+        assert.equal(track.progress, undefined);
         assert.equal(
           (
             await call(
@@ -373,8 +374,8 @@ test("wholesale customer and admin workflow", async (t) => {
               undefined,
               userCookie,
             )
-          ).data.progress,
-          1,
+          ).data.position,
+          null,
         );
       },
     );
@@ -1087,4 +1088,63 @@ test("verified email delivery, opaque recovery, one-use links, expiry and provid
   } finally {
     await stop(child); await new Promise(resolve=>provider.close(resolve)); rmSync(dir,{recursive:true,force:true});
   }
+});
+
+test('driver GPS is scoped, consent-controlled, validated, stale-aware and revoked on completion',async()=>{
+  const dir=mkdtempSync(path.join(os.tmpdir(),'sako-gps-'));
+  const child=await start(dir,32195), call=client(32195);
+  const driverCall=async(token,data,method='POST',path='/api/driver/location')=>{
+    const r=await fetch('http://127.0.0.1:32195'+path,{method,headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:data ? JSON.stringify(data) : undefined});
+    return {status:r.status,data:await r.json()};
+  };
+  try {
+    const buyer=await call('/api/auth/register','POST',{name:'GPS Buyer',email:'gps@example.test',password:'gps-password-123'});
+    const other=await call('/api/auth/register','POST',{name:'Other',email:'gps-other@example.test',password:'other-password-123'});
+    const admin=await call('/api/auth/login','POST',{email:'admin@sakosupply.com',password:'test-password'});
+    const order=(await call('/api/orders','POST',{customer:'GPS Buyer',phone:'09123456789',method:'delivery',address:'Private address',payment_method:'cash',items:[{id:1,quantity:1}]},buyer.cookie)).data;
+    const track=()=>call(`/api/orders/${order.id}/tracking`,'GET',undefined,buyer.cookie);
+    assert.equal((await track()).data.position,null);
+    assert.equal((await call(`/api/orders/${order.id}/tracking`,'GET',undefined,other.cookie)).status,404);
+    assert.equal((await call('/api/admin/driver-access','POST',{id:order.id},buyer.cookie)).status,401);
+    const issue=async()=>(await call('/api/admin/driver-access','POST',{id:order.id},admin.cookie)).data.path.split('#')[1];
+    let token=await issue();
+    const fix={latitude:6.503,longitude:124.848,accuracy:8,observed:Date.now()};
+    assert.equal((await driverCall(token,fix)).status,409);
+    for(const status of ['Preparing','Out for delivery']) await call('/api/admin/status','PATCH',{id:order.id,status},admin.cookie);
+    assert.equal((await driverCall('wrong',fix)).status,401);
+    assert.equal((await driverCall(token,{...fix,latitude:91})).status,400);
+    assert.equal((await driverCall(token,{...fix,accuracy:-1})).status,400);
+    assert.equal((await driverCall(token,{...fix,observed:Date.now()-120000})).status,400);
+    assert.equal((await driverCall(token,fix)).status,200);
+    assert.deepEqual((await track()).data.position,[6.503,124.848]);
+    assert.equal((await track()).data.stale,false);
+    assert.equal((await track()).data.progress,undefined);
+    await driverCall(token,{...fix,latitude:6.4,observed:fix.observed-1});
+    assert.deepEqual((await track()).data.position,[6.503,124.848]);
+    const sql=new DatabaseSync(path.join(dir,'sako.sqlite'));
+    assert.notEqual(sql.prepare('SELECT token_hash FROM driver_access').get().token_hash,token);
+    sql.prepare('UPDATE driver_locations SET updated=?').run(Date.now()-120000);
+    assert.equal((await track()).data.stale,true);
+    await driverCall(token,undefined,'DELETE');
+    assert.equal((await track()).data.position,null);
+    const old=token;token=await issue();
+    assert.equal((await driverCall(old,{...fix,observed:Date.now()})).status,401);
+    await driverCall(token,{...fix,observed:Date.now()});
+    await call('/api/admin/driver-access','DELETE',{id:order.id},admin.cookie);
+    assert.equal((await track()).data.position,null);
+    assert.equal((await driverCall(token,undefined,'GET','/api/driver/session')).status,401);
+    token=await issue();
+    sql.prepare('UPDATE driver_access SET expires=0').run();
+    assert.equal((await driverCall(token,fix)).status,401);
+    token=await issue();
+    let limited=false;
+    for(let i=0;i<35;i++) {const r=await driverCall(token,{...fix,observed:Date.now()+i});if(r.status===429){limited=true;break;}}
+    assert.equal(limited,true);
+    await call('/api/admin/status','PATCH',{id:order.id,status:'Completed'},admin.cookie);
+    assert.equal((await track()).data.position,null);
+    assert.equal((await driverCall(token,fix)).status,401);
+    assert.equal(sql.prepare('SELECT count(*) n FROM driver_locations').get().n,0);
+    assert.equal(sql.prepare('SELECT count(*) n FROM driver_access').get().n,0);
+    sql.close();
+  } finally {await stop(child);rmSync(dir,{recursive:true,force:true});}
 });

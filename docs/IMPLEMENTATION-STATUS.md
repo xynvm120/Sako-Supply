@@ -11,7 +11,7 @@
 - Integration tests for expiry, throttling, two-process concurrent last-sack orders, and stored text; no assertions disabled.
 - 10+/25+ sack discounts, reorder, zone fees, per-product reorder points, Pending customer cancellation, and an in-app notification log.
 - Daily/weekly completed-sales charts with accessible data tables; separate collected-cash ledger using payment collection dates.
-- Local illustrated tracking map that makes no tile-provider requests. It is a simulation, not real GPS or routing.
+- Leaflet street maps (OpenStreetMap initially, optional MapTiler) with explicit driver device geolocation sharing, order-scoped expiring access, stop/revoke, and stale-fix labels. No generated movement, automatic geocoding, ETA, route history or road routing. Live provider/hardware availability still requires deployment verification.
 - Basic PWA manifest/icons and a network-first public app shell. No private API caching or offline checkout.
 - Manual and nightly SQL/upload backups, backup integrity test, Dockerfile, .env.example, GitHub Actions test workflow, request logging, and /health.
 - Local tutorial video with controls/captions/transcript and a rubric-specific defense checklist.
@@ -31,7 +31,7 @@ The configured admin identity still has no customer user_id; its email is persis
 - Multiple saved addresses and real address autocomplete/geocoding.
 - Complete Filipino/Bisaya localization, including validation messages and product content.
 - Real email/SMS notifications; the current in-app log sends nothing externally.
-- Real merchant card/GCash/Maya processing and consented rider GPS. The existing screens remain clearly labeled demonstrations.
+- Real merchant card/GCash/Maya processing. Device GPS sharing is implemented; a continuously running background driver app, attested locations and turn-by-turn routing are not.
 
 These were outside the prioritized defense pass. Real payment/location services also require accounts, credentials, and operational decisions that were not supplied. No values or credentials were invented.
 

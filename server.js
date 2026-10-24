@@ -1,3 +1,5 @@
+import { trackingRoute } from "./routes/tracking.js";
+import { mapConfig, cleanupTracking } from "./services/tracking.js";
 import { mailReady } from "./services/mail.js";
 import http from "node:http";
 import { scheduleBackups } from "./services/backups.js";
@@ -96,7 +98,8 @@ const server = http.createServer(async (req, res) => {
       );
   });
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "geolocation=(self)");
   res.setHeader("X-Frame-Options", "DENY");
   try {
     const url = new URL(req.url, "http://localhost");
@@ -117,6 +120,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, {
         demo: true,
         emailRecovery: mailReady(),
+        map: mapConfig(),
         supportEmail: /^\S+@\S+\.\S+$/.test(process.env.SUPPORT_EMAIL || "") ? process.env.SUPPORT_EMAIL : null,
         weight: 25,
         minSacks,
@@ -149,6 +153,8 @@ const server = http.createServer(async (req, res) => {
       p.startsWith("/api/notifications")
     )
       return await ordersRoute({ p, method, req, res, send, orderDTO });
+    if (p.startsWith("/api/driver/") || p === "/api/admin/driver-access")
+      return await trackingRoute({p,method,req,res,send});
     if (p.startsWith("/api/admin/")) {
       const administrator = requireAdmin(req);
       if (["POST", "PATCH", "DELETE"].includes(method))
@@ -241,6 +247,10 @@ const server = http.createServer(async (req, res) => {
           db.prepare(
             "UPDATE orders SET status=?,payment_status=?,dispatch_at=CASE WHEN ?='Out for delivery' THEN ? ELSE dispatch_at END WHERE id=?",
           ).run(b.status, payment, b.status, now(), o.id);
+          if (["Completed","Cancelled"].includes(b.status)) {
+            db.prepare("DELETE FROM driver_locations WHERE order_id=?").run(o.id);
+            db.prepare("DELETE FROM driver_access WHERE order_id=?").run(o.id);
+          }
           db.prepare(
             "INSERT INTO order_events(order_id,status,created) VALUES(?,?,?)",
           ).run(o.id, b.status, now());
@@ -311,6 +321,8 @@ const server = http.createServer(async (req, res) => {
     const files = {
       "/": "public/index.html",
       "/admin": "public/index.html",
+      "/driver": "public/driver.html",
+      "/driver.js": "public/driver.js",
       "/help.html": "public/help.html",
       "/returns.html": "public/returns.html",
       "/support.js": "public/support.js",
@@ -375,6 +387,8 @@ const server = http.createServer(async (req, res) => {
     });
   }
 });
+cleanupTracking();
+setInterval(cleanupTracking, 60000).unref();
 if (process.env.AUTO_BACKUP !== "off") scheduleBackups();
 if (adminPassword === "admin123")
   console.warn(

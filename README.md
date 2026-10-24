@@ -26,7 +26,7 @@ To stop the server, press Ctrl+C in that command window. To start again, run `np
 - Register, sign in, sign out, and update name, phone, and default address.
 - Browse/search/filter/sort 25 kg rice products and read product details, texture, and cooking notes.
 - Add multiple sacks, set quantities, choose pickup or delivery, and place an order.
-- View only your own order history, status timeline, receipts, and simulated delivery route.
+- View only your own order history, status timeline, receipts, and shared driver GPS on a street map.
 - Print a receipt or choose **Save as PDF** from the browser print window.
 
 Use fictional contact information for the defense. Customer passwords are salted and hashed with scrypt. Customer and admin sessions are stored in the database, expire after 24 hours, and are revoked on logout.
@@ -70,7 +70,7 @@ Every active listing is a 25 kg sack. Sample wholesale discounts are calculated 
 
 Sample delivery zones: **Koronadal ₱150, Tupi ₱300, Tantangan ₱250**. Pickup is free. These are demonstration rates, not verified carrier quotes or a promise of service coverage.
 
-The Leaflet map now uses a bundled **local illustrated backdrop**. It never contacts a public street-tile server, preventing provider “access blocked” banners from obscuring the demo. The map is not actual street navigation, real rider GPS, geocoding, or a route to the customer's entered address or selected zone. It shows a fixed, labeled sample route. Pending delivery orders show the map immediately; after admin dispatch, a simulated truck moves for three minutes. Status/position refresh every five seconds. Pickup orders have a collection panel instead.
+The Leaflet map loads real OpenStreetMap street tiles, with optional MapTiler configuration. It displays the assigned driver's latest device location only after the driver explicitly starts sharing while Out for delivery. No truck movement, progress percentage, destination coordinates or route is generated. Missing and stale locations are labelled. Pickup orders have no map. See [live tracking setup](docs/LIVE-TRACKING.md) for driver links, HTTPS, privacy and provider limits.
 
 ## Products and market descriptions
 
@@ -120,21 +120,21 @@ If you already have a Chromium installation, set `SAKO_CHROMIUM` to its executab
 3. Register a fictional customer; select delivery and simulate a card or wallet payment.
 4. Show the order reference, payment status, and printable receipt.
 5. In a second/incognito browser, click **Sign in** and use the demo admin email/password, prepare the order, then dispatch it.
-6. Keep the customer's order details open; the status and moving **simulated** map update automatically.
+6. Keep the customer's order details open; the status updates automatically. Issue a driver link and share device GPS to show actual submitted location updates.
 7. Complete the order and show its report entry; export a CSV.
 8. Create a second order, cancel it, and show stock restoration and the inventory audit log.
 
-Use the explanation and scope notes in [docs/DEFENSE.md](docs/DEFENSE.md). Do not present simulated payments/tracking as real integrations or invented product descriptions as verified supplier data.
+Use the explanation and scope notes in [docs/DEFENSE.md](docs/DEFENSE.md). Do not present simulated payments as real financial integrations or invented product descriptions as verified supplier data.
 
 ## Before commercial deployment
 
-This is a defense prototype. Real payments require a provider's hosted payment fields/checkout and server-verified webhooks; real delivery tracking requires consented driver GPS, real destinations, delivery access control, and operational arrangements. Also configure HTTPS, a strong admin password, backups, privacy/retention rules, email verification and account recovery, production monitoring, and secure payment/refund policies. No real payment should depend on a browser-supplied success flag.
+This is a defense prototype. Real payments require a provider's hosted payment fields/checkout and server-verified webhooks; device tracking requires the assigned driver’s explicit consent, HTTPS and a reachable server; address geocoding and road routing remain unimplemented. Also configure HTTPS, a strong admin password, backups, privacy/retention rules, email verification and account recovery, production monitoring, and secure payment/refund policies. No real payment should depend on a browser-supplied success flag.
 
 ## Visual refresh and tracking changes
 
-The interface now uses mint backgrounds, rounded white cards, pill controls, and a bundled rice-field illustration inspired by an agriculture dashboard. It remains responsive on phones. All illustrations load locally; the local map, fonts, and bundled video do not require third-party website access. System fonts are used.
+The interface now uses mint backgrounds, rounded white cards, pill controls, and a bundled rice-field illustration inspired by an agriculture dashboard. It remains responsive on phones. All illustrations load locally; fonts and the bundled video do not require third-party website access. Street map tiles require an external provider. System fonts are used.
 
-Existing pickup orders remain pickup orders; they are never silently converted to deliveries. To demonstrate delivery tracking, place a **new delivery order**, open **Open delivery map**, and use a second/incognito admin window to progress Pending → Preparing → Out for delivery. The truck starts moving after dispatch. This remains a simulation, not real rider GPS.
+Existing pickup orders remain pickup orders; they are never silently converted to deliveries. To demonstrate delivery tracking, place a **new delivery order**, open **Open delivery map**, and use a second/incognito admin window to progress Pending → Preparing → Out for delivery. The admin issues a private driver link from order details. The driver must open it, consent and start sharing on an HTTPS site before a location marker appears. Browser/device location accuracy and foreground limitations apply.
 
 Screenshots of the refreshed interface: [desktop storefront](docs/screenshots/storefront.png) · [mobile storefront](docs/screenshots/mobile.png).
 

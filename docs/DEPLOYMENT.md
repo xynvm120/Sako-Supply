@@ -29,7 +29,7 @@ In the service's Environment settings, set private `EMAIL_API_KEY`, verified `EM
 
 ## Backup and demo limits
 
-The automatic backup timer runs only while the service is running. The disk stores database/uploads and backups under different subdirectories, but they are still on the **same disk**; download private backups to another device for disaster recovery. Run `npm run backup` in the service shell when needed. Disk-backed hosting does not turn demo payments or the illustrated delivery route into live financial/GPS services.
+The automatic backup timer runs only while the service is running. The disk stores database/uploads and backups under different subdirectories, but they are still on the **same disk**; download private backups to another device for disaster recovery. Run `npm run backup` in the service shell when needed. Disk-backed hosting does not turn demo payments into real financial services. Live device tracking requires an HTTPS URL accessible to the driver’s phone and explicit sharing; see LIVE-TRACKING.md.
 
 ## If you need to present without paid hosting
 
