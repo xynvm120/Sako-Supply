@@ -4,6 +4,25 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Sako Supply · Good rice. Good days.</title>
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      try {
+        const preference = localStorage.getItem("sako-theme");
+        document.documentElement.dataset.theme = ["light", "dark"].includes(
+          preference,
+        )
+          ? preference
+          : matchMedia("(prefers-color-scheme: dark)").matches
+            ? "dark"
+            : "light";
+      } catch {
+        document.documentElement.dataset.theme = matchMedia(
+          "(prefers-color-scheme: dark)",
+        ).matches
+          ? "dark"
+          : "light";
+      }
+    </script>
     <link rel="stylesheet" href="/style.css" />
     <link rel="stylesheet" href="/leaflet.css" />
   </head>
@@ -23,9 +42,29 @@
         ><button id="orders-link" class="text-button" hidden>My orders</button
         ><button id="admin-link" class="text-button" hidden>Dashboard →</button>
       </nav>
-      <button id="cart-button" class="cart-button">
-        Bag <span id="cart-count">0</span> →
-      </button>
+      <div class="header-actions">
+        <button
+          id="theme-toggle"
+          class="theme-toggle"
+          type="button"
+          aria-label="Switch to dark mode"
+          aria-pressed="false"
+        >
+          <svg class="moon-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M20 15.3A8.5 8.5 0 0 1 8.7 4 8.5 8.5 0 1 0 20 15.3Z"
+            /></svg
+          ><svg class="sun-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="4" />
+            <path
+              d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
+            /></svg
+          ><span id="theme-label">Dark</span>
+        </button>
+        <button id="cart-button" class="cart-button">
+          Bag <span id="cart-count">0</span> →
+        </button>
+      </div>
     </header>
     <main>
       <section class="welcome-strip">

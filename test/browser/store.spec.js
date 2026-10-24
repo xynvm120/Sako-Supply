@@ -400,3 +400,46 @@ test("portrait product photos fit cards and details without cropping or covering
     await detail.getByRole("button", { name: "Close", exact: true }).click();
   }
 });
+test("dark mode follows system preference, persists a manual choice, and styles admin", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await expect(
+    page.getByRole("button", { name: "Switch to light mode" }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.locator("#account-link").click();
+  await expect(page.locator("#account-dialog")).toBeVisible();
+  await page
+    .locator("#account-dialog")
+    .getByRole("button", { name: "Close", exact: true })
+    .click();
+  await page.getByRole("button", { name: "Switch to light mode" }).click();
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.getByRole("button", { name: "Switch to dark mode" }).click();
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({ path: "/tmp/sako-dark-mobile.png", fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.locator("#account-link").click();
+  await page.getByLabel("Email address").fill("admin@sakosupply.com");
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("browser-admin-password");
+  await page.locator("#customer-auth").getByRole("button").click();
+  await expect(page.locator("#admin-panel")).toBeVisible();
+  await expect(page.locator("#admin-dialog")).toHaveCSS(
+    "color",
+    "rgb(228, 237, 223)",
+  );
+  await page.screenshot({ path: "/tmp/sako-dark-admin.png" });
+});

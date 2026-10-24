@@ -1,4 +1,33 @@
 const $ = (s) => document.querySelector(s);
+const themeMedia = matchMedia("(prefers-color-scheme: dark)");
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  const dark = theme === "dark";
+  $("#theme-toggle").setAttribute("aria-pressed", String(dark));
+  $("#theme-toggle").setAttribute(
+    "aria-label",
+    dark ? "Switch to light mode" : "Switch to dark mode",
+  );
+  $("#theme-label").textContent = dark ? "Light" : "Dark";
+}
+applyTheme(
+  document.documentElement.dataset.theme ||
+    (themeMedia.matches ? "dark" : "light"),
+);
+$("#theme-toggle").onclick = () => {
+  const theme =
+    document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  applyTheme(theme);
+  try {
+    localStorage.setItem("sako-theme", theme);
+  } catch {}
+};
+themeMedia.addEventListener("change", (event) => {
+  try {
+    if (["light", "dark"].includes(localStorage.getItem("sako-theme"))) return;
+  } catch {}
+  applyTheme(event.matches ? "dark" : "light");
+});
 const money = (n) =>
   "₱" +
   Number(n).toLocaleString("en-PH", {
