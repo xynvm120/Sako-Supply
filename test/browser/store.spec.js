@@ -672,3 +672,22 @@ test("policy navigation, signup acknowledgment, and customer recovery form", asy
   await page.getByRole('button',{name:'Create account',exact:true}).click();
   await expect(page.getByRole('checkbox',{name:/I agree/})).toHaveAttribute('required','');
 });
+
+test("help and refund links, disconnected email state, and private recovery-link handling", async ({page}) => {
+  await page.goto('/');
+  await page.locator('footer').getByRole('link',{name:'Contact & Help'}).click();
+  await expect(page.getByRole('heading',{name:'Contact & Help',exact:true})).toBeVisible();
+  await expect(page.locator('#support-contact')).toContainText('has not been configured');
+  await page.getByRole('link',{name:'Returns & Refunds',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'Returns & Refunds Policy'})).toBeVisible();
+  const fragments=new URLSearchParams({flow:'recover',email:'link@example.test',code:'private-test-token'});
+  await page.goto('/#'+fragments);
+  await expect(page.locator('#password-reset [name=email]')).toHaveValue('link@example.test');
+  await expect(page.locator('#password-reset [name=code]')).toHaveValue('private-test-token');
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator('#account-content')).toContainText('Email delivery is not connected');
+  await page.goto('/#'+new URLSearchParams({flow:'verify',email:'link@example.test',code:'invalid'}));
+  await expect(page.locator('#verify-email [name=email]')).toHaveValue('link@example.test');
+  await page.getByRole('button',{name:'Verify email',exact:true}).click();
+  await expect(page.locator('#verify-message')).toHaveText('Invalid or expired verification code.');
+});

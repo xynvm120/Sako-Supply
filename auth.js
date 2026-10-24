@@ -17,6 +17,7 @@ const publicUser = (u) =>
         id: u.id,
         name: u.name,
         email: u.email,
+        email_verified: Boolean(u.email_verified_at),
         phone: u.phone,
         address: u.address,
       }

@@ -1,3 +1,4 @@
+import { mailReady } from "./services/mail.js";
 import http from "node:http";
 import { scheduleBackups } from "./services/backups.js";
 import { accountsRoute } from "./routes/accounts.js";
@@ -115,6 +116,8 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/config" && method === "GET")
       return send(res, 200, {
         demo: true,
+        emailRecovery: mailReady(),
+        supportEmail: /^\S+@\S+\.\S+$/.test(process.env.SUPPORT_EMAIL || "") ? process.env.SUPPORT_EMAIL : null,
         weight: 25,
         minSacks,
         deliveryFee,
@@ -129,6 +132,9 @@ const server = http.createServer(async (req, res) => {
         "/api/session",
         "/api/auth/register",
         "/api/auth/recovery-code",
+        "/api/auth/request-verification",
+        "/api/auth/verify-email",
+        "/api/auth/forgot-password",
         "/api/auth/reset-password",
         "/api/auth/login",
         "/api/login",
@@ -305,6 +311,9 @@ const server = http.createServer(async (req, res) => {
     const files = {
       "/": "public/index.html",
       "/admin": "public/index.html",
+      "/help.html": "public/help.html",
+      "/returns.html": "public/returns.html",
+      "/support.js": "public/support.js",
       "/privacy.html": "public/privacy.html",
       "/agreement.html": "public/agreement.html",
       "/assets/rice-fields.svg": "public/assets/rice-fields.svg",

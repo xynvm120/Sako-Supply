@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { createServer } from "node:http";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -6,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 const root = process.cwd();
-async function start(dir, port, password = "test-password") {
+async function start(dir, port, password = "test-password", extraEnv = {}) {
   const child = spawn(process.execPath, ["server.js"], {
     cwd: root,
     env: {
@@ -14,6 +15,7 @@ async function start(dir, port, password = "test-password") {
       PORT: String(port),
       DATA_DIR: dir,
       ADMIN_PASSWORD: password,
+      ...extraEnv,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
@@ -1021,4 +1023,68 @@ test("admin-assisted recovery requires authorization, expires, is single-use and
     assert.equal((await call('/privacy.html')).status,200);
     assert.equal((await call('/agreement.html')).status,200);
   } finally { await stop(child); rmSync(dir,{recursive:true,force:true}); }
+});
+
+test("verified email delivery, opaque recovery, one-use links, expiry and provider failure", async () => {
+  const messages=[];
+  let rejectMail=false;
+  const provider=createServer(async(req,res)=>{
+    let data=''; for await (const chunk of req) data+=chunk;
+    assert.equal(req.headers.authorization,'Bearer test-mail-key');
+    if(rejectMail) { res.writeHead(503); return res.end('{}'); }
+    messages.push(JSON.parse(data));
+    res.writeHead(200,{'Content-Type':'application/json'});res.end('{"id":"test-message"}');
+  });
+  await new Promise(resolve=>provider.listen(32194,'127.0.0.1',resolve));
+  const dir=mkdtempSync(path.join(os.tmpdir(),'sako-email-'));
+  const child=await start(dir,32193,'test-password',{
+    EMAIL_API_KEY:'test-mail-key',EMAIL_FROM:'Sako <test@example.test>',
+    EMAIL_API_URL:'http://127.0.0.1:32194/emails',PUBLIC_URL:'http://localhost:3000',SUPPORT_EMAIL:'help@example.test'
+  });
+  const call=client(32193);
+  const codeOf=mail=>new URL(mail.text.split('\n')[1]).hash.slice(1);
+  try {
+    const created=await call('/api/auth/register','POST',{name:'Email buyer',email:'mail@example.test',password:'old-password-123'});
+    assert.equal(created.data.user.email_verified,false);
+    assert.equal((await call('/api/config')).data.emailRecovery,true);
+    assert.equal((await call('/api/config')).data.supportEmail,'help@example.test');
+    assert.equal((await call('/api/auth/request-verification','POST',{})).status,401);
+    const unknown=await call('/api/auth/forgot-password','POST',{email:'unknown@example.test'});
+    const unverified=await call('/api/auth/forgot-password','POST',{email:'mail@example.test'});
+    assert.deepEqual(unknown.data,unverified.data);
+    assert.equal(messages.length,0);
+    assert.equal((await call('/api/auth/request-verification','POST',{},created.cookie)).status,200);
+    assert.equal(messages.length,1);
+    const params=new URLSearchParams(codeOf(messages[0]));
+    assert.equal(params.get('flow'),'verify');
+    const verify={email:'mail@example.test',code:params.get('code')};
+    assert.equal((await call('/api/auth/verify-email','POST',{...verify,email:'other@example.test'})).status,400);
+    assert.equal((await call('/api/auth/verify-email','POST',verify)).status,200);
+    assert.equal((await call('/api/auth/verify-email','POST',verify)).status,400);
+    assert.equal((await call('/api/session','GET',undefined,created.cookie)).data.user.email_verified,true);
+    const recovery=await call('/api/auth/forgot-password','POST',{email:'mail@example.test'});
+    assert.deepEqual(recovery.data,unknown.data);
+    assert.equal(messages.length,2);
+    const resetParams=new URLSearchParams(codeOf(messages[1]));
+    assert.equal(resetParams.get('flow'),'recover');
+    const reset={email:resetParams.get('email'),code:resetParams.get('code'),password:'new-password-123'};
+    assert.equal((await call('/api/auth/reset-password','POST',reset)).status,200);
+    assert.equal((await call('/api/auth/reset-password','POST',reset)).status,400);
+    assert.equal((await call('/api/session','GET',undefined,created.cookie)).data.user,null);
+    assert.equal((await call('/api/auth/forgot-password','POST',{email:'mail@example.test'})).status,429);
+    const other=await call('/api/auth/register','POST',{name:'Other',email:'expiry@example.test',password:'safe-password-123'});
+    await call('/api/auth/request-verification','POST',{},other.cookie);
+    const expired=new URLSearchParams(codeOf(messages.at(-1)));
+    const sql=new DatabaseSync(path.join(dir,'sako.sqlite'));
+    sql.prepare('UPDATE email_verifications SET expires=0').run();
+    assert.equal((await call('/api/auth/verify-email','POST',{email:'expiry@example.test',code:expired.get('code')})).status,400);
+    rejectMail=true;
+    assert.equal((await call('/api/auth/request-verification','POST',{},other.cookie)).status,503);
+    assert.equal(sql.prepare('SELECT count(*) n FROM email_verifications').get().n,0);
+    sql.close();
+    assert.equal((await call('/help.html')).status,200);
+    assert.equal((await call('/returns.html')).status,200);
+  } finally {
+    await stop(child); await new Promise(resolve=>provider.close(resolve)); rmSync(dir,{recursive:true,force:true});
+  }
 });

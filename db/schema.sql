@@ -44,3 +44,9 @@ CREATE TABLE IF NOT EXISTS password_resets (
  token_hash TEXT NOT NULL UNIQUE,
  expires INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS email_verifications (
+ user_id TEXT PRIMARY KEY REFERENCES users(id),
+ token_hash TEXT NOT NULL UNIQUE,
+ expires INTEGER NOT NULL
+);

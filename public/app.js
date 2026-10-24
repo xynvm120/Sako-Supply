@@ -218,8 +218,36 @@ document.querySelectorAll("dialog").forEach((d) =>
     }
   }),
 );
-function recoveryView() {
-  $("#account-content").innerHTML = `<h3>Reset your password</h3><p>Contact the store administrator and verify your identity to receive a single-use recovery code. Codes expire after 15 minutes. This prototype does not send recovery emails.</p><form id="password-reset"><label>Email address<input name="email" type="email" autocomplete="email" required maxlength="254"></label><label>Recovery code<input name="code" autocomplete="off" required maxlength="128"></label><label>New password<input name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="128"></label><button class="primary checkout-button">Reset password</button><p id="reset-message" role="status"></p></form><button id="back-signin" class="secondary">Back to sign in</button>`;
+function bindMailForm(selector, path, message) {
+  $(selector).onsubmit = async e => {
+    e.preventDefault(); const button=e.target.querySelector("button"); button.disabled=true;
+    try { const result=await post(path,Object.fromEntries(new FormData(e.target))); $(message).textContent=result.message; }
+    catch(e) { $(message).textContent=e.message; }
+    finally { button.disabled=false; }
+  };
+}
+function verificationView(email="",code="") {
+  show("#account-dialog");
+  $("#account-content").innerHTML='<h3>Verify email address</h3><form id="verify-email"><label>Email address<input type="email" name="email" autocomplete="email" required maxlength="254"></label><label>Verification code<input name="code" autocomplete="off" required maxlength="128"></label><button class="primary checkout-button">Verify email</button><p id="verify-message" role="status"></p></form><button class="secondary" id="verify-back">Back to account</button>';
+  $("#verify-email [name=email]").value=email;
+  $("#verify-email [name=code]").value=code;
+  $("#verify-back").onclick=()=>authView();
+  $("#verify-email").onsubmit=async e=>{
+    e.preventDefault(); const button=e.target.querySelector("button"); button.disabled=true;
+    try { await post("/api/auth/verify-email",Object.fromEntries(new FormData(e.target))); const current=await api("/api/session"); user=current.user; authView(); toast("Email verified. Email recovery is now available when connected."); }
+    catch(e) { $("#verify-message").textContent=e.message; }
+    finally { button.disabled=false; }
+  };
+}
+function recoveryView(email = "", code = "") {
+  show("#account-dialog");
+  $("#account-content").innerHTML = `<h3>Reset your password</h3><p>Use a code from your recovery email or contact the administrator for assisted recovery. Codes expire after 15 minutes. <a href="/help.html" target="_blank" rel="noopener">Get help</a>.</p><form id="password-reset"><label>Email address<input name="email" type="email" autocomplete="email" required maxlength="254"></label><label>Recovery code<input name="code" autocomplete="off" required maxlength="128"></label><label>New password<input name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="128"></label><button class="primary checkout-button">Reset password</button><p id="reset-message" role="status"></p></form><button id="back-signin" class="secondary">Back to sign in</button>`;
+  $("#password-reset [name=email]").value = email;
+  $("#password-reset [name=code]").value = code;
+  if (config.emailRecovery) {
+    $("#password-reset").insertAdjacentHTML("beforebegin", '<form id="request-recovery"><label>Verified account email<input name="email" type="email" autocomplete="email" maxlength="254" required></label><button class="secondary">Email recovery link</button><p id="mail-message" role="status"></p></form>');
+    bindMailForm("#request-recovery", "/api/auth/forgot-password", "#mail-message");
+  } else $("#password-reset").insertAdjacentHTML("beforebegin", '<p class="form-note">Email delivery is not connected. Ask the administrator for a recovery code.</p>');
   $("#back-signin").onclick = () => authView();
   $("#password-reset").onsubmit = async e => {
     e.preventDefault();
@@ -235,6 +263,11 @@ function authView(mode = "login") {
   if (user) {
     $("#account-content").innerHTML =
       `<p>${esc(user.email)}</p><form id="profile"><div class="form-grid"><label>Full name<input name="name" value="${esc(user.name)}" required maxlength="150" autocomplete="name"></label><label>Mobile number<input name="phone" value="${esc(user.phone)}" required pattern="[+0-9 -]{10,16}" autocomplete="tel"></label><label class="wide">Default delivery address<textarea name="address" maxlength="500" autocomplete="street-address">${esc(user.address)}</textarea></label></div><button class="primary checkout-button">Save profile</button><p id="profile-error" role="alert"></p></form><button id="customer-logout" class="secondary">Log out</button>`;
+    $("#profile").insertAdjacentHTML("beforebegin", `<section class="email-verification"><p>Email status: <b>${user.email_verified ? "Verified" : "Not verified"}</b></p>${user.email_verified ? "" : `<p class="form-note">Verify ownership of your email to enable emailed password recovery. ${config.emailRecovery ? "" : "Email delivery is not connected yet."}</p><form id="send-verification"><button class="secondary" ${config.emailRecovery ? "" : "disabled"}>Send verification email</button><p id="verification-message" role="status"></p></form><button id="enter-verification" class="secondary">Enter verification code</button>`}</section>`);
+    if (!user.email_verified) {
+      bindMailForm("#send-verification", "/api/auth/request-verification", "#verification-message");
+      $("#enter-verification").onclick=()=>verificationView(user.email);
+    }
     $("#profile").onsubmit = async (e) => {
       e.preventDefault();
       try {
@@ -278,7 +311,7 @@ function authView(mode = "login") {
   if (mode === "register") $("#customer-auth").insertAdjacentHTML("beforeend", '<label><input type="checkbox" name="agreement" required> I agree to the User Agreement and acknowledge the Privacy Policy.</label>');
   else {
     $("#customer-auth").insertAdjacentHTML("afterend", '<button id="forgot-password" class="secondary">Forgot password?</button>');
-    $("#forgot-password").onclick = recoveryView;
+    $("#forgot-password").onclick = () => recoveryView();
   }
   $("#login-tab").onclick = () => authView("login");
   $("#register-tab").onclick = () => authView("register");
@@ -1144,6 +1177,15 @@ $("#admin-link").onclick = async () => {
     toast(e.message);
   }
 };
+function handleAccountLink() {
+    const link = new URLSearchParams(location.hash.slice(1));
+    if (["recover","verify"].includes(link.get("flow"))) {
+      history.replaceState(null,"",location.pathname);
+      if (link.get("flow")==="recover") recoveryView(link.get("email") || "",link.get("code") || "");
+      else verificationView(link.get("email") || "",link.get("code") || "");
+    }
+}
+addEventListener("hashchange",handleAccountLink);
 async function init() {
   try {
     const [s, c] = await Promise.all([api("/api/session"), api("/api/config")]);
@@ -1153,6 +1195,7 @@ async function init() {
     accountLabel();
     await refresh();
     if (location.pathname === "/admin") await adminView("overview");
+    handleAccountLink();
   } catch (e) {
     $("#products").innerHTML =
       "<p>Could not load the store. Ensure the server is running, then refresh.</p>";

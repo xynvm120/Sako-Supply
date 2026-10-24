@@ -17,6 +17,7 @@ function column(table, name, definition) {
   )
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
 }
+column("users", "email_verified_at", "TEXT");
 for (const [name, definition] of [
   ["description", "TEXT NOT NULL DEFAULT ''"],
   ["texture", "TEXT NOT NULL DEFAULT ''"],
@@ -173,6 +174,7 @@ db.exec(`
 `);
 export function cleanupSessions() {
   db.prepare("DELETE FROM password_resets WHERE expires<=?").run(Date.now());
+  db.prepare("DELETE FROM email_verifications WHERE expires<=?").run(Date.now());
   return db.prepare("DELETE FROM sessions WHERE expires<=?").run(Date.now())
     .changes;
 }

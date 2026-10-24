@@ -190,3 +190,16 @@ html[data-theme="dark"] .bulk-offer {
   padding: 0;
   accent-color: var(--green, #246346);
 }
+
+.policy-page {
+  max-width: 850px;
+  margin: 40px auto;
+  padding: 24px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.policy-page h1 { margin: 24px 0; }
+.policy-page h2 { margin: 28px 0 12px; }
+.policy-page details { padding: 16px 0; border-bottom: 1px solid var(--line); }
+.policy-page summary { cursor: pointer; font-weight: 600; }
+.email-verification { margin: 16px 0 24px; }

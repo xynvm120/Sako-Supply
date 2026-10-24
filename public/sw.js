@@ -1,8 +1,11 @@
-const CACHE = "sako-shell-v2";
+const CACHE = "sako-shell-v3";
 const SHELL = [
   "/",
   "/app.js",
   "/privacy.html",
+  "/help.html",
+  "/returns.html",
+  "/support.js",
   "/agreement.html",
   "/theme-init.js",
   "/style.css",

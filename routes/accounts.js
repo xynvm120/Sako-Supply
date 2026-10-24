@@ -1,3 +1,4 @@
+import { mailReady, sendAccountMail } from "../services/mail.js";
 import { db } from "../db.js";
 import { createHash, randomBytes, scrypt as scryptCallback } from "node:crypto";
 import { promisify } from "node:util";
@@ -21,10 +22,52 @@ import {
   registrations,
   authKey,
 } from "../services/security.js";
+const mailIpLimit = new WindowLimiter(15, 900000);
+const mailAccountLimit = new WindowLimiter(3, 900000);
 const recoveryLimit = new WindowLimiter(8, 600000);
 const tokenHash = value => createHash("sha256").update(value).digest("hex");
 const scrypt = promisify(scryptCallback);
 export async function accountsRoute({ p, method, req, res, send }) {
+  if (p === "/api/auth/verify-email" && method === "POST") {
+    recoveryLimit.check(req.socket.remoteAddress); recoveryLimit.hit(req.socket.remoteAddress);
+    const b = await body(req);
+    const digest = tokenHash(str(b.code,128));
+    const entry = db.prepare("SELECT v.user_id FROM email_verifications v JOIN users u ON u.id=v.user_id WHERE v.token_hash=? AND v.expires>? AND u.email=?").get(digest,Date.now(),str(b.email,254).toLowerCase());
+    if (!entry) throw fail(400,"Invalid or expired verification code.");
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const used = db.prepare("DELETE FROM email_verifications WHERE user_id=? AND token_hash=? AND expires>?").run(entry.user_id,digest,Date.now());
+      if (!used.changes) throw fail(400,"Invalid or expired verification code.");
+      db.prepare("UPDATE users SET email_verified_at=? WHERE id=?").run(now(),entry.user_id);
+      db.exec("COMMIT");
+    } catch(e) { db.exec("ROLLBACK"); throw e; }
+    return send(res,200,{ok:true});
+  }
+  if (["/api/auth/request-verification","/api/auth/forgot-password"].includes(p) && method === "POST") {
+    const verification = p.endsWith("request-verification");
+    const identity = verification ? requireCustomer(req) : null;
+    if (!mailReady()) throw fail(503,"Email delivery is not connected. Contact the administrator for assisted recovery.");
+    const b = await body(req);
+    const customer = verification
+      ? db.prepare("SELECT * FROM users WHERE id=?").get(identity.user_id)
+      : db.prepare("SELECT * FROM users WHERE email=?").get(str(b.email,254).toLowerCase());
+    const email = verification ? customer.email : str(b.email,254).toLowerCase();
+    mailIpLimit.check(req.socket.remoteAddress); mailAccountLimit.check(email);
+    mailIpLimit.hit(req.socket.remoteAddress); mailAccountLimit.hit(email);
+    if (customer && (verification ? !customer.email_verified_at : customer.email_verified_at)) {
+      const code = randomBytes(24).toString("hex");
+      const table = verification ? "email_verifications" : "password_resets";
+      db.prepare(`INSERT OR REPLACE INTO ${table}(user_id,token_hash,expires) VALUES(?,?,?)`).run(customer.id,tokenHash(code),Date.now()+900000);
+      try { await sendAccountMail(email,code,verification ? "verify" : "reset"); }
+      catch {
+        db.prepare(`DELETE FROM ${table} WHERE user_id=? AND token_hash=?`).run(customer.id,tokenHash(code));
+        // Never log tokens, email addresses, credentials, or provider response bodies.
+        console.warn("Account email delivery failed; check provider configuration.");
+        if (verification) throw fail(503,"Email could not be sent. Try again later or contact the administrator.");
+      }
+    }
+    return send(res,200,{message: verification ? "If your email needs verification, a message has been requested. Check your inbox and spam folder." : "If this address belongs to an account with a verified email, recovery instructions have been requested. Otherwise contact the administrator."});
+  }
   if (p === "/api/auth/recovery-code" && method === "POST") {
     const admin = requireAdmin(req);
     const b = await body(req);
