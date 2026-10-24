@@ -3482,3 +3482,56 @@ html[data-theme="dark"] .product:nth-child(n) .product-art {
 html[data-theme="dark"] .hero-art:before {
   color: #c8e1b7;
 }
+.photo-open {
+  cursor: zoom-in;
+  position: relative;
+}
+.image-enlarge-hint {
+  position: absolute;
+  bottom: 9px;
+  right: 11px;
+  border-radius: 12px;
+  padding: 5px 9px;
+  background: #ffffffdf;
+  color: #35563d;
+  font-size: 9px;
+}
+.image-disclaimer {
+  font-size: 9px !important;
+  color: var(--muted);
+  line-height: 1.7;
+  margin: 9px 3px !important;
+}
+.photo-open .rice-photo {
+  transition: transform 0.25s;
+}
+.photo-open:hover .rice-photo {
+  transform: scale(1.025);
+}
+#image-viewer-dialog {
+  width: min(820px, 94vw);
+}
+#image-viewer-content {
+  text-align: center;
+}
+#image-viewer-content > img {
+  display: block;
+  width: 100%;
+  height: min(65vh, 650px);
+  object-fit: contain;
+  border-radius: 16px;
+  background: #edf2e5;
+}
+#image-viewer-content > p {
+  font-size: 11px;
+  color: var(--muted);
+}
+html[data-theme="dark"] .image-enlarge-hint {
+  background: #263b2ce8;
+  color: #d8e8cd;
+}
+@media (prefers-reduced-motion: reduce) {
+  .photo-open:hover .rice-photo {
+    transform: none;
+  }
+}

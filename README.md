@@ -141,3 +141,7 @@ Screenshots of the refreshed interface: [desktop storefront](docs/screenshots/st
 ## Light and dark mode
 
 Use the theme toggle beside the bag button. The first visit follows your device's light/dark preference; a manual choice is saved in this browser and survives reloads. The theme applies to the storefront, account forms, and dashboard. Product photos retain their original colors, and printed receipts keep a white background.
+
+## Product image collection
+
+The five standard rice types include bundled, AI-generated Sako 25 kg packaging mockups with coordinated pale sage studio backgrounds and distinct rice labels. They are illustrative house-brand designs, not verified photographs of commercial supplier packaging. Images load locally from `public/assets/products`, without third-party image links. Uploaded admin photos take precedence; removing a custom photo restores the matching default for standard products. Product cards open details; click **View larger** in the product details image for an enlarged, keyboard-accessible viewer (Escape closes it).

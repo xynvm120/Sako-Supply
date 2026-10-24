@@ -179,12 +179,26 @@ const publicUser = (u) =>
     : null;
 const minSacks = 1; // Wholesale catalog; no invented minimum purchase requirement.
 const deliveryFee = 150;
+const defaultProductImages = {
+  Dinorado: "dinorado",
+  Jasmine: "jasmine",
+  Sinandomeng: "sinandomeng",
+  "Well-milled white rice": "well-milled",
+  "Well-milled": "well-milled",
+  "Brown rice": "brown-rice",
+};
 const allProducts = (archived = false) =>
   db
     .prepare(
       `SELECT * FROM products ${archived ? "" : "WHERE active=1 AND weight=25"} ORDER BY id`,
     )
-    .all();
+    .all()
+    .map((product) => ({
+      ...product,
+      default_image: defaultProductImages[product.name]
+        ? `/assets/products/${defaultProductImages[product.name]}.png`
+        : "",
+    }));
 function session(req) {
   const token = (req.headers.cookie || "")
     .split(/;\s*/)
@@ -895,6 +909,14 @@ const server = http.createServer(async (req, res) => {
       "/admin": "public/index.html",
       "/assets/rice-fields.svg": "public/assets/rice-fields.svg",
       "/assets/demo-map.svg": "public/assets/demo-map.svg",
+      "/assets/products/brown-rice.png":
+        "public/assets/products/brown-rice.png",
+      "/assets/products/well-milled.png":
+        "public/assets/products/well-milled.png",
+      "/assets/products/sinandomeng.png":
+        "public/assets/products/sinandomeng.png",
+      "/assets/products/jasmine.png": "public/assets/products/jasmine.png",
+      "/assets/products/dinorado.png": "public/assets/products/dinorado.png",
       "/app.js": "public/app.js",
       "/style.css": "public/style.css",
       "/leaflet.js": "node_modules/leaflet/dist/leaflet.js",
@@ -903,13 +925,15 @@ const server = http.createServer(async (req, res) => {
     if (!files[p]) throw fail(404, "Not found.");
     const content = readFileSync(path.join(root, files[p]));
     res.writeHead(200, {
-      "Content-Type": p.endsWith(".svg")
-        ? "image/svg+xml"
-        : p.endsWith(".js")
-          ? "text/javascript; charset=utf-8"
-          : p.endsWith(".css")
-            ? "text/css; charset=utf-8"
-            : "text/html; charset=utf-8",
+      "Content-Type": p.endsWith(".png")
+        ? "image/png"
+        : p.endsWith(".svg")
+          ? "image/svg+xml"
+          : p.endsWith(".js")
+            ? "text/javascript; charset=utf-8"
+            : p.endsWith(".css")
+              ? "text/css; charset=utf-8"
+              : "text/html; charset=utf-8",
     });
     res.end(method === "HEAD" ? undefined : content);
   } catch (e) {

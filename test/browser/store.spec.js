@@ -443,3 +443,49 @@ test("dark mode follows system preference, persists a manual choice, and styles 
   );
   await page.screenshot({ path: "/tmp/sako-dark-admin.png" });
 });
+test("standard rice products have bundled images and accessible enlarged views", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const products = await (await page.request.get("/api/products")).json();
+  const standards = products.filter((p) => p.default_image);
+  expect(standards).toHaveLength(5);
+  for (const product of standards) {
+    const response = await page.request.get(product.default_image);
+    expect(response.ok()).toBe(true);
+    expect(response.headers()["content-type"]).toContain("image/png");
+    const card = page
+      .locator(".product")
+      .filter({ has: page.locator(`[data-detail="${product.id}"]`) });
+    await expect(card.locator(".rice-photo")).toHaveAttribute(
+      "src",
+      product.image || product.default_image,
+    );
+    await expect
+      .poll(() =>
+        card
+          .locator(".rice-photo")
+          .evaluate((img) => img.complete && img.naturalWidth > 0),
+      )
+      .toBe(true);
+    await card.locator(".product-art").click();
+    await page
+      .getByRole("button", {
+        name: `Enlarge ${product.name} image`,
+        exact: true,
+      })
+      .click();
+    await expect(page.locator("#image-viewer-content img")).toHaveAttribute(
+      "src",
+      product.image || product.default_image,
+    );
+    await expect(page.locator("#image-viewer-dialog")).toContainText("mockup");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#product-dialog")).toBeVisible();
+    await page.keyboard.press("Escape");
+  }
+  await page.screenshot({
+    path: "/tmp/sako-product-images.png",
+    fullPage: true,
+  });
+});
