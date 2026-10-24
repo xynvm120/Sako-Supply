@@ -1,0 +1,27 @@
+# Persistent disks require a paid Render service. Review costs before deploying.
+services:
+  - type: web
+    name: sako-supply
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --omit=dev --ignore-scripts
+    startCommand: npm start
+    healthCheckPath: /health
+    numInstances: 1
+    disk:
+      name: sako-storage
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data/store
+      - key: BACKUP_DIR
+        value: /var/data/backups
+      - key: ADMIN_EMAIL
+        value: admin@sakosupply.com
+      - key: ADMIN_PASSWORD
+        sync: false

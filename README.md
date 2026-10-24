@@ -214,3 +214,7 @@ If any required email setting is absent or PUBLIC_URL is invalid, email controls
 Sign-in, registration and password reset have accessible Show/Hide controls. Registration and reset require matching confirmation fields; the repeat password is checked in the browser and is not transmitted or stored. Password length and hashing remain enforced by the backend.
 
 Checkout now uses **Review order → Confirm and place order**. The review shows rice products, sack quantities, base prices, customer contact details, pickup or delivery address/zone, payment method, subtotal, bulk discount, delivery fee and total. **Back to edit**, closing the review, or Escape returns to the existing checkout without submitting. Raw card fields are not copied into the review or request. Inventory is reserved only after confirmation succeeds; the backend still validates stock and calculates the authoritative price.
+
+### Hosting: Vercel versus a persistent Node server
+
+This app's local SQLite database and uploaded photos need persistent storage; Vercel functions are not suitable without a database/storage migration. See [deployment instructions](docs/DEPLOYMENT.md) for the runtime error explanation, local presentation option, and the included `render.yaml` for a **paid**, single-instance Render service with a persistent disk. No hosted deployment has been created by adding the configuration.
