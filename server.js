@@ -128,6 +128,8 @@ const server = http.createServer(async (req, res) => {
       [
         "/api/session",
         "/api/auth/register",
+        "/api/auth/recovery-code",
+        "/api/auth/reset-password",
         "/api/auth/login",
         "/api/login",
         "/api/logout",
@@ -303,6 +305,8 @@ const server = http.createServer(async (req, res) => {
     const files = {
       "/": "public/index.html",
       "/admin": "public/index.html",
+      "/privacy.html": "public/privacy.html",
+      "/agreement.html": "public/agreement.html",
       "/assets/rice-fields.svg": "public/assets/rice-fields.svg",
       "/assets/demo-map.svg": "public/assets/demo-map.svg",
       "/assets/products/brown-rice.png":

@@ -27,7 +27,7 @@ The configured admin identity still has no customer user_id; its email is persis
 - Customer credit/pay-later accounting, credit limits, partial payments, and refunds/aging rules.
 - Cashier/staff accounts and role-specific permissions beyond customer/admin.
 - Product cost snapshots, margin and profit accounting.
-- Real password-reset/email-verification delivery. Requires an email service, verified sender, expiring token flow, and abuse controls.
+- Automated password-reset/email-verification delivery. Admin-assisted, expiring single-use customer recovery codes are implemented; emailed recovery still requires a verified sender and email service.
 - Multiple saved addresses and real address autocomplete/geocoding.
 - Complete Filipino/Bisaya localization, including validation messages and product content.
 - Real email/SMS notifications; the current in-app log sends nothing externally.

@@ -988,3 +988,37 @@ test("parallel servers cannot sell the last sack twice; expiry, zones, cancellat
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("admin-assisted recovery requires authorization, expires, is single-use and revokes sessions", async () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "sako-recovery-"));
+  const child = await start(dir,32192);
+  const call=client(32192);
+  try {
+    const account=await call('/api/auth/register','POST',{name:'Recovery buyer',email:'reset@example.test',password:'old-password-123'});
+    const admin=await call('/api/auth/login','POST',{email:'admin@sakosupply.com',password:'test-password'});
+    const issue={email:'reset@example.test',identity_verified:true};
+    assert.equal((await call('/api/auth/recovery-code','POST',issue)).status,401);
+    assert.equal((await call('/api/auth/recovery-code','POST',issue,account.cookie)).status,401);
+    assert.equal((await call('/api/auth/recovery-code','POST',{email:issue.email},admin.cookie)).status,400);
+    const first=await call('/api/auth/recovery-code','POST',issue,admin.cookie);
+    const second=await call('/api/auth/recovery-code','POST',issue,admin.cookie);
+    const reset={email:issue.email,code:first.data.code,password:'new-password-123'};
+    assert.equal((await call('/api/auth/reset-password','POST',reset)).status,400);
+    const sql=new DatabaseSync(path.join(dir,'sako.sqlite'));
+    const row=sql.prepare('SELECT * FROM password_resets').get();
+    assert.notEqual(row.token_hash,second.data.code);
+    sql.prepare('UPDATE password_resets SET expires=0').run();
+    reset.code=second.data.code;
+    assert.equal((await call('/api/auth/reset-password','POST',reset)).status,400);
+    reset.code=(await call('/api/auth/recovery-code','POST',issue,admin.cookie)).data.code;
+    assert.equal((await call('/api/auth/reset-password','POST',reset)).status,200);
+    assert.equal((await call('/api/auth/reset-password','POST',reset)).status,400);
+    assert.equal((await call('/api/session','GET',undefined,account.cookie)).data.user,null);
+    assert.equal((await call('/api/auth/login','POST',{email:issue.email,password:'old-password-123'})).status,401);
+    assert.equal((await call('/api/auth/login','POST',{email:issue.email,password:reset.password})).status,200);
+    assert.equal(sql.prepare('SELECT count(*) n FROM password_resets').get().n,0);
+    sql.close();
+    assert.equal((await call('/privacy.html')).status,200);
+    assert.equal((await call('/agreement.html')).status,200);
+  } finally { await stop(child); rmSync(dir,{recursive:true,force:true}); }
+});

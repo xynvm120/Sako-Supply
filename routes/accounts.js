@@ -1,7 +1,8 @@
 import { db } from "../db.js";
-import { randomBytes, scrypt as scryptCallback } from "node:crypto";
+import { createHash, randomBytes, scrypt as scryptCallback } from "node:crypto";
 import { promisify } from "node:util";
 import {
+  requireAdmin,
   adminEmail,
   adminPassword,
   publicUser,
@@ -16,11 +17,47 @@ import { now, str, fail } from "../services/common.js";
 import {
   loginFailures,
   ipFailures,
+  WindowLimiter,
   registrations,
   authKey,
 } from "../services/security.js";
+const recoveryLimit = new WindowLimiter(8, 600000);
+const tokenHash = value => createHash("sha256").update(value).digest("hex");
 const scrypt = promisify(scryptCallback);
 export async function accountsRoute({ p, method, req, res, send }) {
+  if (p === "/api/auth/recovery-code" && method === "POST") {
+    const admin = requireAdmin(req);
+    const b = await body(req);
+    if (b.identity_verified !== true) throw fail(400, "Verify the customer's identity before issuing a code.");
+    const customer = db.prepare("SELECT id FROM users WHERE email=?").get(str(b.email,254).toLowerCase());
+    if (!customer) throw fail(404, "Customer not found.");
+    const code = randomBytes(24).toString("hex");
+    db.prepare("DELETE FROM password_resets WHERE expires<=?").run(Date.now());
+    db.prepare("INSERT OR REPLACE INTO password_resets(user_id,token_hash,expires) VALUES(?,?,?)").run(customer.id, tokenHash(code), Date.now()+900000);
+    db.prepare("INSERT INTO admin_log(actor,action,created) VALUES(?,?,?)").run(admin.actor || adminEmail, "Issued password recovery code for " + customer.id, now());
+    return send(res,200,{code, expires_minutes:15});
+  }
+  if (p === "/api/auth/reset-password" && method === "POST") {
+    const key = req.socket.remoteAddress;
+    recoveryLimit.check(key); recoveryLimit.hit(key);
+    const b = await body(req);
+    const password = b.password;
+    if (typeof password !== "string" || password.length<8 || password.length>128) throw fail(400,"Use a password of 8–128 characters.");
+    const digest = tokenHash(str(b.code,128));
+    const reset = db.prepare("SELECT r.user_id FROM password_resets r JOIN users u ON u.id=r.user_id WHERE r.token_hash=? AND r.expires>? AND u.email=?").get(digest,Date.now(),str(b.email,254).toLowerCase());
+    if (!reset) throw fail(400,"Invalid or expired recovery code.");
+    const salt = randomBytes(16).toString("hex");
+    const derived = (await scrypt(password,salt,64)).toString("hex");
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const used = db.prepare("DELETE FROM password_resets WHERE user_id=? AND token_hash=? AND expires>?").run(reset.user_id,digest,Date.now());
+      if (!used.changes) throw fail(400,"Invalid or expired recovery code.");
+      db.prepare("UPDATE users SET password_hash=?,salt=? WHERE id=?").run(derived,salt,reset.user_id);
+      db.prepare("DELETE FROM sessions WHERE user_id=?").run(reset.user_id);
+      db.exec("COMMIT");
+    } catch(e) { db.exec("ROLLBACK"); throw e; }
+    return send(res,200,{ok:true});
+  }
   if (p === "/api/session" && method === "GET") {
     const s = session(req);
     return send(res, 200, {

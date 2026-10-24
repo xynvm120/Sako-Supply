@@ -172,6 +172,7 @@ db.exec(`
  CREATE TRIGGER IF NOT EXISTS order_items_money AFTER INSERT ON order_items BEGIN UPDATE order_items SET unit_price_centavos=round(NEW.price*100) WHERE id=NEW.id; END;
 `);
 export function cleanupSessions() {
+  db.prepare("DELETE FROM password_resets WHERE expires<=?").run(Date.now());
   return db.prepare("DELETE FROM sessions WHERE expires<=?").run(Date.now())
     .changes;
 }

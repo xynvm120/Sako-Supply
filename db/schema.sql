@@ -38,3 +38,9 @@ CREATE TABLE IF NOT EXISTS order_events (
 );
 CREATE INDEX IF NOT EXISTS order_items_order ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS order_events_order ON order_events(order_id);
+
+CREATE TABLE IF NOT EXISTS password_resets (
+ user_id TEXT PRIMARY KEY REFERENCES users(id),
+ token_hash TEXT NOT NULL UNIQUE,
+ expires INTEGER NOT NULL
+);

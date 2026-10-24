@@ -38,6 +38,7 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
   await page
     .getByLabel("Password", { exact: true })
     .fill("defense-password-2026");
+  await page.getByRole("checkbox", { name: /I agree/ }).check();
   await page.getByRole("button", { name: "Create account →" }).click();
   await expect(page.locator("#account-dialog")).not.toBeVisible();
   const cart = page.locator("#cart-dialog");
@@ -651,4 +652,23 @@ test("stored customer markup is rendered as text in profiles, orders, and receip
   await expect(page.locator("#receipt-content")).toContainText(payload);
   await expect(page.locator(".xss-probe")).toHaveCount(0);
   expect(await page.evaluate(() => window.injected)).toBeUndefined();
+});
+
+test("policy navigation, signup acknowledgment, and customer recovery form", async ({page}) => {
+  await page.goto('/');
+  await page.locator('footer').getByRole('link',{name:'Privacy Policy'}).click();
+  await expect(page.getByRole('heading',{name:'Privacy Policy',exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'User Agreement'}).click();
+  await expect(page.getByRole('heading',{name:'User Agreement',exact:true})).toBeVisible();
+  await page.getByRole('link',{name:'Back to Sako Supply'}).click();
+  await page.locator('#account-link').click();
+  await page.getByRole('button',{name:'Forgot password?'}).click();
+  await page.getByLabel('Email address').fill('unknown@example.test');
+  await page.getByLabel('Recovery code').fill('invalid-code');
+  await page.getByLabel('New password').fill('new-password-123');
+  await page.getByRole('button',{name:'Reset password',exact:true}).click();
+  await expect(page.locator('#reset-message')).toHaveText('Invalid or expired recovery code.');
+  await page.getByRole('button',{name:'Back to sign in'}).click();
+  await page.getByRole('button',{name:'Create account',exact:true}).click();
+  await expect(page.getByRole('checkbox',{name:/I agree/})).toHaveAttribute('required','');
 });

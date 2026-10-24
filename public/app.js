@@ -218,6 +218,17 @@ document.querySelectorAll("dialog").forEach((d) =>
     }
   }),
 );
+function recoveryView() {
+  $("#account-content").innerHTML = `<h3>Reset your password</h3><p>Contact the store administrator and verify your identity to receive a single-use recovery code. Codes expire after 15 minutes. This prototype does not send recovery emails.</p><form id="password-reset"><label>Email address<input name="email" type="email" autocomplete="email" required maxlength="254"></label><label>Recovery code<input name="code" autocomplete="off" required maxlength="128"></label><label>New password<input name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="128"></label><button class="primary checkout-button">Reset password</button><p id="reset-message" role="status"></p></form><button id="back-signin" class="secondary">Back to sign in</button>`;
+  $("#back-signin").onclick = () => authView();
+  $("#password-reset").onsubmit = async e => {
+    e.preventDefault();
+    const button = e.target.querySelector("button"); button.disabled = true;
+    try { await post("/api/auth/reset-password",Object.fromEntries(new FormData(e.target))); authView(); toast("Password updated. Sign in with your new password."); }
+    catch(e) { $("#reset-message").textContent=e.message; }
+    finally { button.disabled=false; }
+  };
+}
 function authView(mode = "login") {
   show("#account-dialog");
   $("#account-title").textContent = user ? "Your account" : "Welcome to Sako";
@@ -263,6 +274,12 @@ function authView(mode = "login") {
   }
   $("#account-content").innerHTML =
     `<div class="auth-intro"><span class="eyebrow">WELCOME TO YOUR ONLINE BIGASAN</span><h3>Good rice. Great company.</h3><p>One sign-in for customers and store administrators.</p></div><div class="tabs"><button id="login-tab" class="${mode === "login" ? "chosen" : ""}">Sign in</button><button id="register-tab" class="${mode === "register" ? "chosen" : ""}">Create account</button></div><p>Order 25 kg sacks and keep all your receipts in one place.</p><form id="customer-auth">${mode === "register" ? '<label>Full name<input name="name" autocomplete="name" required maxlength="150"></label>' : ""}<label>Email address<input name="email" type="email" autocomplete="email" required maxlength="254"></label><label>Password<input name="password" type="password" autocomplete="${mode === "register" ? "new-password" : "current-password"}" minlength="8" maxlength="128" required></label><p class="form-note">${mode === "register" ? "Use at least 8 characters. For this demo, use fictional contact information." : "Welcome back. Your orders are saved to your account."}</p><button class="primary checkout-button">${mode === "register" ? "Create account" : "Sign in"} →</button><p id="auth-error" role="alert"></p></form>`;
+  $("#customer-auth").insertAdjacentHTML("beforebegin", '<p><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> · <a href="/agreement.html" target="_blank" rel="noopener">User Agreement</a></p>');
+  if (mode === "register") $("#customer-auth").insertAdjacentHTML("beforeend", '<label><input type="checkbox" name="agreement" required> I agree to the User Agreement and acknowledge the Privacy Policy.</label>');
+  else {
+    $("#customer-auth").insertAdjacentHTML("afterend", '<button id="forgot-password" class="secondary">Forgot password?</button>');
+    $("#forgot-password").onclick = recoveryView;
+  }
   $("#login-tab").onclick = () => authView("login");
   $("#register-tab").onclick = () => authView("register");
   $("#customer-auth").onsubmit = async (e) => {
@@ -1072,7 +1089,7 @@ async function customersPanel() {
           .filter((c) => `${c.name} ${c.email}`.toLowerCase().includes(q))
           .map(
             (c) =>
-              `<tr><td>${esc(c.name)}<small>${esc(c.email)}</small></td><td>${esc(c.phone || "Not yet provided")}</td><td>${c.order_count}</td><td>${money(c.total_spent)}</td><td><button class="small-button" data-customer="${c.id}">Order history</button></td></tr>`,
+              `<tr><td>${esc(c.name)}<small>${esc(c.email)}</small></td><td>${esc(c.phone || "Not yet provided")}</td><td>${c.order_count}</td><td>${money(c.total_spent)}</td><td><button class="small-button" data-customer="${c.id}">Order history</button><button class="small-button" data-recovery="${esc(c.email)}">Issue recovery code</button></td></tr>`,
           )
           .join("") || '<tr><td colspan="5">No matching customers.</td></tr>'
       }</tbody></table></div>`;
@@ -1080,6 +1097,16 @@ async function customersPanel() {
       .querySelectorAll("[data-customer]")
       .forEach((b) => (b.onclick = () => ordersPanel(b.dataset.customer)));
   };
+  $("#customer-table").addEventListener("click", async e => {
+    const button = e.target.closest("[data-recovery]");
+    if (!button || !confirm("Have you verified this customer's identity through a trusted channel? Only continue after verification. The new code replaces any previous code.")) return;
+    button.disabled=true;
+    try {
+      const result = await post("/api/auth/recovery-code",{email:button.dataset.recovery,identity_verified:true});
+      prompt("Give this code privately to the verified customer. It expires in 15 minutes; do not share it publicly.",result.code);
+    } catch(e) { toast(e.message); }
+    finally { button.disabled=false; }
+  });
   $("#customer-search").oninput = draw;
   draw();
 }

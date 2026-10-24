@@ -185,3 +185,9 @@ A non-root Node 24 Dockerfile and a GitHub Actions workflow running npm test are
 ## Phone installation and offline behavior
 
 A manifest, app icons, and a service worker provide a basic installable app shell on supported HTTPS/localhost browsers. The cache is network-first and stores only public static shell files. It **never caches API responses, customer records, or order mutations**. Offline sign-in, checkout, and tracking are unsupported and an offline banner explains the limitation. Browser installation prompts depend on the browser/device. The bundled tutorial video has controls, captions, and a written transcript.
+
+### Policy pages and customer password recovery
+
+The footer and sign-in dialog link to `/privacy.html` and `/agreement.html`. These notices describe the research prototype and require review before real deployment. The registration interface requires an agreement checkbox; it is not a versioned legal-consent audit system.
+
+Customer recovery is admin-assisted, **not automatic email delivery**. A customer selects **Forgot password?** and contacts the project administrator through the existing school/demo contact channel. After independently verifying identity (do not rely solely on knowing an email address), the admin opens **Customers → Issue recovery code**, confirms verification and privately provides the displayed code. Codes expire in 15 minutes, are stored hashed, and are single-use; issuing another invalidates the previous code. The customer submits their email, code and new password. Successful recovery revokes all their sessions. Public reset attempts are rate-limited; issuing a code requires an admin session and is audited. No code is returned by a public email-lookup endpoint. Admin credentials remain configured through `ADMIN_PASSWORD`, not this customer recovery flow. Never publish or screenshot real recovery codes. A verified sender/email service is still required for self-service emailed links.
