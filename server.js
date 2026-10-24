@@ -323,6 +323,7 @@ const server = http.createServer(async (req, res) => {
       "/admin": "public/index.html",
       "/driver": "public/driver.html",
       "/driver.js": "public/driver.js",
+      "/scroll-top.js": "public/scroll-top.js",
       "/help.html": "public/help.html",
       "/returns.html": "public/returns.html",
       "/support.js": "public/support.js",

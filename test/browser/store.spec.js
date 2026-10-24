@@ -798,3 +798,73 @@ test('assigned driver explicitly shares browser GPS and can stop or be revoked',
     await expect(driver.locator('#driver-start')).toBeDisabled();
   } finally {await driverContext.close();await admin.dispose();}
 });
+
+for (const method of ['gcash','maya']) test(`${method} checkout preview cancels, declines and approves without wallet credentials`,async({page})=>{
+  if(method==='maya') { await page.clock.install(); await page.setViewportSize({width:390,height:844}); }
+  await page.goto('/');
+  await page.request.post('/api/auth/register',{data:{name:'Wallet Buyer',email:`wallet-${method}@example.test`,password:'wallet-test-password'}});
+  await page.reload();
+  await page.getByRole('button',{name:'View Dinorado details',exact:true}).click();
+  await page.locator('#detail-add').getByRole('button').click();
+  await page.locator('#product-dialog').getByRole('button',{name:'Close',exact:true}).click();
+  await page.locator('#cart-button').click();
+  await page.getByLabel('Mobile number').fill('09123456789');
+  await page.getByLabel('Receive your order').selectOption('pickup');
+  await page.getByLabel('Payment method').selectOption(method);
+  await expect(page.locator('[name=demo_result]')).toHaveCount(0);
+  const openWallet=async()=>{
+    await page.getByRole('button',{name:'Review order',exact:false}).click();
+    await page.getByRole('button',{name:'Confirm and place order'}).click();
+    await expect(page.locator('#wallet-dialog')).toBeVisible();
+  };
+  await openWallet();
+  await expect(page.locator('#wallet-content')).toContainText('Sako Supply');
+  await expect(page.locator('.wallet-amount')).toContainText('1,450.00');
+  await expect(page.locator('#wallet-content input')).toHaveCount(0);
+  await page.getByRole('button',{name:'Cancel payment',exact:true}).click();
+  await expect(page.locator('#checkout-error')).toContainText('Payment cancelled');
+  expect(await (await page.request.get('/api/orders')).json()).toHaveLength(0);
+  await expect(page.getByLabel('Sacks of Dinorado')).toHaveValue('1');
+  await openWallet();
+  await page.locator('.wallet-test-options summary').click();
+  await page.getByRole('button',{name:'Simulate declined payment'}).click();
+  await expect(page.locator('#checkout-error')).toContainText('Demo payment declined');
+  expect(await (await page.request.get('/api/orders')).json()).toHaveLength(0);
+  await openWallet();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#checkout-error')).toContainText('Payment cancelled');
+  if(method==='maya') {
+    await openWallet();
+    await page.clock.fastForward(301000);
+    await expect(page.locator('#checkout-error')).toContainText('Payment preview expired');
+    expect(await (await page.request.get('/api/orders')).json()).toHaveLength(0);
+  }
+  await openWallet();
+  await page.getByRole('button',{name:'Approve demo payment'}).click();
+  await expect(page.locator('#cart-content')).toContainText('Your sacks are reserved.');
+  const orders=await (await page.request.get('/api/orders')).json();
+  expect(orders).toHaveLength(1);
+  expect(orders[0].payment_method).toBe(method);
+  expect(orders[0].payment_status).toBe('Demo paid');
+});
+
+test('plain-language agreement and back-to-top work on pages and dialogs',async({page})=>{
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/');
+  await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));
+  await page.getByRole('button',{name:'Back to top of page',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
+  await page.locator('#account-link').click();
+  await page.getByRole('button',{name:'Create account',exact:true}).click();
+  await expect(page.locator('.agreement-summary')).toContainText('Before you create an account');
+  await expect(page.locator('.agreement-summary')).toContainText('no real money is transferred');
+  await page.locator('#account-dialog').evaluate(el=>el.scrollTop=el.scrollHeight);
+  await page.locator('#account-dialog').getByRole('button',{name:'Back to top of dialog'}).click();
+  await expect.poll(()=>page.locator('#account-dialog').evaluate(el=>el.scrollTop)).toBe(0);
+  await page.goto('/agreement.html');
+  await expect(page.getByRole('heading',{name:'What accepting means'})).toBeVisible();
+  await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));
+  await page.getByRole('button',{name:'Back to top of page'}).click();
+  await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
+});

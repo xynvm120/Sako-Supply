@@ -370,7 +370,7 @@ function authView(mode = "login") {
   $("#account-content").innerHTML =
     `<div class="auth-intro"><span class="eyebrow">WELCOME TO YOUR ONLINE BIGASAN</span><h3>Good rice. Great company.</h3><p>One sign-in for customers and store administrators.</p></div><div class="tabs"><button id="login-tab" class="${mode === "login" ? "chosen" : ""}">Sign in</button><button id="register-tab" class="${mode === "register" ? "chosen" : ""}">Create account</button></div><p>Order 25 kg sacks and keep all your receipts in one place.</p><form id="customer-auth">${mode === "register" ? '<label>Full name<input name="name" autocomplete="name" required maxlength="150"></label>' : ""}<label>Email address<input name="email" type="email" autocomplete="email" required maxlength="254"></label><label>Password<input name="password" type="password" autocomplete="${mode === "register" ? "new-password" : "current-password"}" minlength="8" maxlength="128" required></label><p class="form-note">${mode === "register" ? "Use at least 8 characters. For this demo, use fictional contact information." : "Welcome back. Your orders are saved to your account."}</p><button class="primary checkout-button">${mode === "register" ? "Create account" : "Sign in"} →</button><p id="auth-error" role="alert"></p></form>`;
   $("#customer-auth").insertAdjacentHTML("beforebegin", '<p><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> · <a href="/agreement.html" target="_blank" rel="noopener">User Agreement</a></p>');
-  if (mode === "register") $("#customer-auth button.primary").insertAdjacentHTML("beforebegin", '<label><input type="checkbox" name="agreement" required> I agree to the User Agreement and acknowledge the Privacy Policy.</label>');
+  if (mode === "register") $("#customer-auth button.primary").insertAdjacentHTML("beforebegin", '<section class="agreement-summary"><h4>Before you create an account</h4><p>You agree to keep your account secure, use the website responsibly, review quantities and delivery details before ordering, and follow the Pending-order cancellation rules. Electronic payments are demonstrations; no real money is transferred.</p><p>Your account and order details are stored to operate the system. Driver location is shared only through the separate driver consent flow. Read the <a href="/agreement.html" target="_blank" rel="noopener">full User Agreement</a> and <a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> before accepting.</p><label><input type="checkbox" name="agreement" required> I agree to the User Agreement, which I have read, and acknowledge the Privacy Policy.</label></section>');
   else {
     $("#customer-auth").insertAdjacentHTML("afterend", '<button id="forgot-password" class="secondary">Forgot password?</button>');
     $("#forgot-password").onclick = () => recoveryView();
@@ -503,6 +503,15 @@ function cartView() {
         button.disabled = false;
         return;
       }
+      if (["gcash","maya"].includes(data.payment_method)) {
+        const outcome=await walletCheckout(data,items);
+        if(outcome===null || outcome==='expired') {
+          $("#checkout-error").textContent=outcome==='expired' ? "Payment preview expired. Your cart is unchanged; please try again." : "Payment cancelled. No order was placed and your cart is unchanged.";
+          button.disabled=false;
+          return;
+        }
+        data.demo_result=outcome;
+      }
       const result = await post("/api/orders", data);
       cart = {};
       save();
@@ -517,6 +526,30 @@ function cartView() {
     }
   };
 }
+function walletCheckout(data, items) {
+  const dialog=$("#wallet-dialog");
+  const name=data.payment_method==='gcash' ? 'GCash' : 'Maya';
+  const quote=previewPricing(items,data.method,data.delivery_zone);
+  const session='DEMO-'+crypto.randomUUID().slice(0,8).toUpperCase();
+  const expires=Date.now()+300000;
+  $("#wallet-title").textContent=`${name} payment preview`;
+  $("#wallet-content").innerHTML=`<section class="wallet-checkout wallet-${data.payment_method}"><span class="wallet-brand">${name}</span><p class="wallet-demo-label">Sako Supply payment demonstration · No real charge</p><ol class="wallet-steps"><li>Review order</li><li aria-current="step">Authorize payment</li><li>Order confirmation</li></ol><p>Paying <strong>Sako Supply</strong></p><p class="wallet-amount">${money(quote.total/100)}</p><p>${items.reduce((n,p)=>n+cart[p.id],0)} rice sacks · ${esc(data.method==='delivery' ? 'Delivery' : 'Store pickup')}</p><p class="form-note">Preview session: ${esc(session)} · Not a provider transaction reference</p><p>In a live checkout, authorization happens through the wallet provider's app or hosted page. This preview stays inside Sako Supply and never requests your wallet password, MPIN or OTP.</p><p id="wallet-countdown" role="timer">Expires in 5:00</p><div class="action-row"><button type="button" class="primary" id="wallet-approve">Approve demo payment</button><button type="button" class="secondary" id="wallet-cancel">Cancel payment</button></div><details class="wallet-test-options"><summary>Other demonstration scenarios</summary><button type="button" class="secondary" id="wallet-decline">Simulate declined payment</button></details><p id="wallet-status" role="status"></p></section>`;
+  return new Promise(resolve=>{
+    let result=null;
+    const expire=()=>{
+      const seconds=Math.max(0,Math.ceil((expires-Date.now())/1000));
+      $("#wallet-countdown").textContent=`Expires in ${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
+      if(!seconds) {result='expired';dialog.close();}
+    };
+    const timer=setInterval(expire,1000);
+    dialog.addEventListener('close',()=>{clearInterval(timer);$("#wallet-content").replaceChildren();resolve(result);},{once:true});
+    $("#wallet-approve").onclick=()=>{result=Date.now()<expires ? 'success' : 'expired';dialog.close();};
+    $("#wallet-cancel").onclick=()=>dialog.close();
+    $("#wallet-decline").onclick=()=>{result='failure';dialog.close();};
+    show('#wallet-dialog');
+    $("#wallet-cancel").focus();
+  });
+}
 function paymentFields() {
   const method = $("#payment-method").value;
   if (method === "cash") {
@@ -529,8 +562,8 @@ function paymentFields() {
       `<div class="payment-demo"><div class="demo-notice">TEST CARDS ONLY · No real charges</div><p class="form-note">Success: <b>4242 4242 4242 4242</b><br>Decline: <b>4000 0000 0000 0002</b><br>Use a future expiry (12/30) and any 3-digit test CVC. These fields stay in your browser and are never submitted.</p><div class="form-grid"><label class="wide">Test card number<input id="demo-card-number" inputmode="numeric" autocomplete="off" placeholder="4242 4242 4242 4242" maxlength="19" required></label><label>Expiry (MM/YY)<input id="demo-card-expiry" inputmode="numeric" autocomplete="off" placeholder="12/30" maxlength="5" required></label><label>Test CVC<input id="demo-card-cvc" inputmode="numeric" type="password" autocomplete="off" placeholder="123" maxlength="3" required></label></div></div>`;
     return;
   }
-  $("#payment-fields").innerHTML =
-    `<div class="payment-demo"><div class="demo-notice">${method === "gcash" ? "GCASH" : "MAYA"} WALLET SIMULATION</div><p>This demonstrates the outcome of a wallet checkout. No wallet login, QR payment, or transfer is requested.</p><label>Demo payment outcome<select name="demo_result"><option value="success">Successful payment</option><option value="failure">Declined / unsuccessful payment</option></select></label></div>`;
+  const name=method==='gcash' ? 'GCash' : 'Maya (formerly PayMaya)';
+  $("#payment-fields").innerHTML=`<section class="wallet-method wallet-${method}"><strong>${name}</strong><p>Review your order, then continue to the wallet payment preview to approve or cancel.</p><p class="form-note">Demo only: no app redirect, QR transfer or real charge. Never enter a wallet MPIN, password or OTP on this website.</p></section>`;
 }
 $("#cart-button").onclick = async () => {
   try {

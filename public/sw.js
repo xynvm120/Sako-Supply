@@ -1,7 +1,8 @@
-const CACHE = "sako-shell-v5";
+const CACHE = "sako-shell-v6";
 const SHELL = [
   "/",
   "/app.js",
+  "/scroll-top.js",
   "/privacy.html",
   "/help.html",
   "/returns.html",

@@ -43,11 +43,11 @@ export async function ordersRoute({ p, method, req, res, send, orderDTO }) {
     orderRequests.check(s.user_id);
     orderRequests.hit(s.user_id);
     if (
-      ["cardNumber", "card_number", "cvc", "cvv", "expiry"].some((k) => k in b)
+      ["cardNumber", "card_number", "cvc", "cvv", "expiry", "mpin", "otp", "wallet_password"].some((k) => k in b)
     )
       throw fail(
         400,
-        "Never send card details to this server. Use the demo payment controls.",
+        "Never send card details or wallet credentials to this server. Use the demo payment controls.",
       );
     const customer = str(b.customer),
       phone = str(b.phone, 30),
