@@ -218,6 +218,67 @@ document.querySelectorAll("dialog").forEach((d) =>
     }
   }),
 );
+function passwordControls(form, confirmPassword = false) {
+  const password = form.querySelector('[name="password"]');
+  if (confirmPassword) {
+    password.closest("label").insertAdjacentHTML("afterend", '<label>Confirm password<input name="password_confirm" type="password" autocomplete="new-password" required minlength="8" maxlength="128"></label>');
+    const confirmation = form.querySelector('[name="password_confirm"]');
+    const validate = () => confirmation.setCustomValidity(
+      confirmation.value && confirmation.value !== password.value ? "Passwords do not match." : "",
+    );
+    password.addEventListener("input", validate);
+    confirmation.addEventListener("input", validate);
+  }
+  form.querySelectorAll('input[type="password"]').forEach((input, index) => {
+    const label = input.closest("label");
+    const fieldName = label.textContent.trim();
+    const wrapper = document.createElement("div");
+    wrapper.className = "password-control";
+    label.before(wrapper);
+    wrapper.append(label);
+    input.id = `${form.id}-password-${index}`;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "password-toggle secondary";
+    toggle.textContent = "Show";
+    toggle.setAttribute("aria-label", `Show ${fieldName.toLowerCase()}`);
+    toggle.setAttribute("aria-controls", input.id);
+    toggle.setAttribute("aria-pressed", "false");
+    toggle.onclick = () => {
+      const visible = input.type === "password";
+      input.type = visible ? "text" : "password";
+      toggle.textContent = visible ? "Hide" : "Show";
+      toggle.setAttribute("aria-label", `${visible ? "Hide" : "Show"} ${fieldName.toLowerCase()}`);
+      toggle.setAttribute("aria-pressed", String(visible));
+    };
+    wrapper.append(toggle);
+  });
+}
+function accountPayload(form) {
+  const confirmation = form.querySelector('[name="password_confirm"]');
+  if (confirmation && confirmation.value !== form.querySelector('[name="password"]').value)
+    throw Error("Passwords do not match.");
+  const data = new FormData(form);
+  data.delete("password_confirm");
+  return Object.fromEntries(data);
+}
+function reviewOrder(data, items) {
+  const dialog = $("#review-dialog");
+  const quote = previewPricing(items, data.method, data.delivery_zone);
+  const zone = (config.deliveryZones || []).find(z => z.id === data.delivery_zone);
+  $("#review-content").innerHTML = `<p>Check your details before confirming. Your order is submitted only after you confirm.</p><dl class="review-details"><dt>Customer</dt><dd>${esc(data.customer)}</dd><dt>Mobile number</dt><dd>${esc(data.phone)}</dd><dt>Receive your order</dt><dd>${data.method === "delivery" ? `Delivery · ${esc(zone?.name || "Selected zone")}` : "Store pickup"}</dd>${data.method === "delivery" ? `<dt>Delivery address</dt><dd>${esc(data.address)}</dd>` : ""}<dt>Payment method</dt><dd>${esc(paymentName(data.payment_method))}</dd></dl><div class="table-scroll"><table class="admin-table"><caption>Rice sacks in your order</caption><thead><tr><th>Product</th><th>Sacks</th><th>Price / sack</th><th>Subtotal</th></tr></thead><tbody>${items.map(p => `<tr><td>${esc(p.name)} · 25 kg</td><td>${cart[p.id]}</td><td>${money((p.price_centavos ?? Math.round(p.price * 100)) / 100)}</td><td>${money((p.price_centavos ?? Math.round(p.price * 100)) * cart[p.id] / 100)}</td></tr>`).join("")}</tbody></table></div><dl class="review-totals"><dt>Rice subtotal</dt><dd>${money(quote.subtotal / 100)}</dd><dt>Bulk discount</dt><dd>−${money(quote.discount / 100)}</dd><dt>Delivery fee</dt><dd>${money(quote.fee / 100)}</dd><dt>Total</dt><dd><strong>${money(quote.total / 100)}</strong></dd></dl><p class="form-note">Prices and availability are checked by the server when you confirm. Electronic payments and tracking are demonstrations.</p><div class="action-row"><button type="button" class="secondary" id="review-edit">Back to edit</button><button type="button" class="primary" id="review-confirm">Confirm and place order</button></div>`;
+  return new Promise(resolve => {
+    let confirmed = false;
+    dialog.addEventListener("close", () => {
+      $("#review-content").replaceChildren();
+      resolve(confirmed);
+    }, {once:true});
+    $("#review-edit").onclick = () => dialog.close();
+    $("#review-confirm").onclick = () => { confirmed = true; dialog.close(); };
+    show("#review-dialog");
+    $("#review-edit").focus();
+  });
+}
 function bindMailForm(selector, path, message) {
   $(selector).onsubmit = async e => {
     e.preventDefault(); const button=e.target.querySelector("button"); button.disabled=true;
@@ -242,6 +303,7 @@ function verificationView(email="",code="") {
 function recoveryView(email = "", code = "") {
   show("#account-dialog");
   $("#account-content").innerHTML = `<h3>Reset your password</h3><p>Use a code from your recovery email or contact the administrator for assisted recovery. Codes expire after 15 minutes. <a href="/help.html" target="_blank" rel="noopener">Get help</a>.</p><form id="password-reset"><label>Email address<input name="email" type="email" autocomplete="email" required maxlength="254"></label><label>Recovery code<input name="code" autocomplete="off" required maxlength="128"></label><label>New password<input name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="128"></label><button class="primary checkout-button">Reset password</button><p id="reset-message" role="status"></p></form><button id="back-signin" class="secondary">Back to sign in</button>`;
+  passwordControls($("#password-reset"), true);
   $("#password-reset [name=email]").value = email;
   $("#password-reset [name=code]").value = code;
   if (config.emailRecovery) {
@@ -251,8 +313,8 @@ function recoveryView(email = "", code = "") {
   $("#back-signin").onclick = () => authView();
   $("#password-reset").onsubmit = async e => {
     e.preventDefault();
-    const button = e.target.querySelector("button"); button.disabled = true;
-    try { await post("/api/auth/reset-password",Object.fromEntries(new FormData(e.target))); authView(); toast("Password updated. Sign in with your new password."); }
+    const button = e.target.querySelector("button.primary"); button.disabled = true;
+    try { await post("/api/auth/reset-password",accountPayload(e.target)); user=null; isAdmin=false; orders=[]; accountLabel(); authView(); toast("Password updated. Sign in with your new password."); }
     catch(e) { $("#reset-message").textContent=e.message; }
     finally { button.disabled=false; }
   };
@@ -308,21 +370,22 @@ function authView(mode = "login") {
   $("#account-content").innerHTML =
     `<div class="auth-intro"><span class="eyebrow">WELCOME TO YOUR ONLINE BIGASAN</span><h3>Good rice. Great company.</h3><p>One sign-in for customers and store administrators.</p></div><div class="tabs"><button id="login-tab" class="${mode === "login" ? "chosen" : ""}">Sign in</button><button id="register-tab" class="${mode === "register" ? "chosen" : ""}">Create account</button></div><p>Order 25 kg sacks and keep all your receipts in one place.</p><form id="customer-auth">${mode === "register" ? '<label>Full name<input name="name" autocomplete="name" required maxlength="150"></label>' : ""}<label>Email address<input name="email" type="email" autocomplete="email" required maxlength="254"></label><label>Password<input name="password" type="password" autocomplete="${mode === "register" ? "new-password" : "current-password"}" minlength="8" maxlength="128" required></label><p class="form-note">${mode === "register" ? "Use at least 8 characters. For this demo, use fictional contact information." : "Welcome back. Your orders are saved to your account."}</p><button class="primary checkout-button">${mode === "register" ? "Create account" : "Sign in"} →</button><p id="auth-error" role="alert"></p></form>`;
   $("#customer-auth").insertAdjacentHTML("beforebegin", '<p><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a> · <a href="/agreement.html" target="_blank" rel="noopener">User Agreement</a></p>');
-  if (mode === "register") $("#customer-auth").insertAdjacentHTML("beforeend", '<label><input type="checkbox" name="agreement" required> I agree to the User Agreement and acknowledge the Privacy Policy.</label>');
+  if (mode === "register") $("#customer-auth button.primary").insertAdjacentHTML("beforebegin", '<label><input type="checkbox" name="agreement" required> I agree to the User Agreement and acknowledge the Privacy Policy.</label>');
   else {
     $("#customer-auth").insertAdjacentHTML("afterend", '<button id="forgot-password" class="secondary">Forgot password?</button>');
     $("#forgot-password").onclick = () => recoveryView();
   }
+  passwordControls($("#customer-auth"), mode === "register");
   $("#login-tab").onclick = () => authView("login");
   $("#register-tab").onclick = () => authView("register");
   $("#customer-auth").onsubmit = async (e) => {
     e.preventDefault();
-    const btn = e.target.querySelector("button");
+    const btn = e.target.querySelector("button.primary");
     btn.disabled = true;
     try {
       const result = await post(
         "/api/auth/" + mode,
-        Object.fromEntries(new FormData(e.target)),
+        accountPayload(e.target),
       );
       user = result.user;
       isAdmin = result.admin === true;
@@ -371,7 +434,7 @@ function cartView() {
   const sub = items.reduce((a, p) => a + p.price * cart[p.id], 0),
     count = items.reduce((a, p) => a + cart[p.id], 0);
   $("#cart-content").innerHTML = items.length
-    ? `<div class="demo-notice">Prototype checkout · Electronic payments are for testing; no money is transferred.</div>${items.map((p) => `<div class="cart-row"><div><b>${esc(p.name)} · 25 kg</b><small>${money(p.price)} per sack</small></div><div class="quantity"><button data-change="${p.id}" data-delta="-1" aria-label="Decrease quantity">−</button><input class="cart-qty" data-quantity="${p.id}" aria-label="Sacks of ${esc(p.name)}" type="number" min="1" max="${p.stock}" value="${cart[p.id]}"><button data-change="${p.id}" data-delta="1" aria-label="Increase quantity">+</button></div><b>${money(p.price * cart[p.id])}</b><button class="remove" data-remove="${p.id}" aria-label="Remove ${esc(p.name)}">×</button></div>`).join("")}<p class="form-note">${count} sacks · ${count * 25} kg total. Every listed package is a 25 kg sack.</p>${user ? `<form id="checkout"><h3>Where’s your next good meal?</h3><div class="form-grid"><label>Full name<input name="customer" value="${esc(user.name)}" autocomplete="name" required maxlength="150"></label><label>Mobile number<input name="phone" value="${esc(user.phone)}" type="tel" autocomplete="tel" placeholder="09XXXXXXXXX" required pattern="[+0-9 -]{10,16}"></label><label class="wide">Receive your order<select name="method" id="method" required><option value="" selected disabled>Choose delivery or pickup</option><option value="delivery">Local delivery + tracking · Fee by zone</option><option value="pickup">Store pickup · Free · No delivery map</option></select></label><div class="fulfillment-hint wide" id="fulfillment-hint">Choose <b>Local delivery</b> for a delivery map, or <b>Store pickup</b> to collect your sacks yourself.</div><label class="wide" id="zone-label" hidden>Delivery zone<select id="delivery-zone" name="delivery_zone" aria-label="Delivery zone">${(config.deliveryZones || []).map((z) => `<option value="${esc(z.id)}">${esc(z.name)} · ${money(z.fee_centavos / 100)}</option>`).join("")}</select></label><label class="wide" id="address-label" hidden>Delivery address<textarea name="address" maxlength="500" autocomplete="street-address">${esc(user.address)}</textarea></label><label class="wide">Payment method<select name="payment_method" id="payment-method"><option value="cash">Cash on pickup / delivery</option><option value="card">Card</option><option value="gcash">GCash</option><option value="maya">Maya</option></select></label></div><div id="payment-fields"></div><div class="bulk-offer">Wholesale savings: 10+ sacks → ₱25 off each; 25+ sacks → ₱50 off each. Sample tiers; all rice types can be combined.</div><p id="cart-discount" class="form-note"></p><div class="total"><span>Total <small id="delivery-note"></small></span><b id="checkout-total">${money(sub)}</b></div><p class="form-note">Stock is reserved after a successful order. Zone fees and bulk discounts are sample rates; final coverage requires store confirmation.</p><button class="primary checkout-button" type="submit">Place order →</button><p id="checkout-error" role="alert"></p></form>` : '<div class="empty"><h3>Keep your orders in one place.</h3><p>Sign in or create an account to check out.</p><button class="primary" id="checkout-signin">Sign in to order →</button></div>'}`
+    ? `<div class="demo-notice">Prototype checkout · Electronic payments are for testing; no money is transferred.</div>${items.map((p) => `<div class="cart-row"><div><b>${esc(p.name)} · 25 kg</b><small>${money(p.price)} per sack</small></div><div class="quantity"><button data-change="${p.id}" data-delta="-1" aria-label="Decrease quantity">−</button><input class="cart-qty" data-quantity="${p.id}" aria-label="Sacks of ${esc(p.name)}" type="number" min="1" max="${p.stock}" value="${cart[p.id]}"><button data-change="${p.id}" data-delta="1" aria-label="Increase quantity">+</button></div><b>${money(p.price * cart[p.id])}</b><button class="remove" data-remove="${p.id}" aria-label="Remove ${esc(p.name)}">×</button></div>`).join("")}<p class="form-note">${count} sacks · ${count * 25} kg total. Every listed package is a 25 kg sack.</p>${user ? `<form id="checkout"><h3>Where’s your next good meal?</h3><div class="form-grid"><label>Full name<input name="customer" value="${esc(user.name)}" autocomplete="name" required maxlength="150"></label><label>Mobile number<input name="phone" value="${esc(user.phone)}" type="tel" autocomplete="tel" placeholder="09XXXXXXXXX" required pattern="[+0-9 -]{10,16}"></label><label class="wide">Receive your order<select name="method" id="method" required><option value="" selected disabled>Choose delivery or pickup</option><option value="delivery">Local delivery + tracking · Fee by zone</option><option value="pickup">Store pickup · Free · No delivery map</option></select></label><div class="fulfillment-hint wide" id="fulfillment-hint">Choose <b>Local delivery</b> for a delivery map, or <b>Store pickup</b> to collect your sacks yourself.</div><label class="wide" id="zone-label" hidden>Delivery zone<select id="delivery-zone" name="delivery_zone" aria-label="Delivery zone">${(config.deliveryZones || []).map((z) => `<option value="${esc(z.id)}">${esc(z.name)} · ${money(z.fee_centavos / 100)}</option>`).join("")}</select></label><label class="wide" id="address-label" hidden>Delivery address<textarea name="address" maxlength="500" autocomplete="street-address">${esc(user.address)}</textarea></label><label class="wide">Payment method<select name="payment_method" id="payment-method"><option value="cash">Cash on pickup / delivery</option><option value="card">Card</option><option value="gcash">GCash</option><option value="maya">Maya</option></select></label></div><div id="payment-fields"></div><div class="bulk-offer">Wholesale savings: 10+ sacks → ₱25 off each; 25+ sacks → ₱50 off each. Sample tiers; all rice types can be combined.</div><p id="cart-discount" class="form-note"></p><div class="total"><span>Total <small id="delivery-note"></small></span><b id="checkout-total">${money(sub)}</b></div><p class="form-note">Stock is reserved after a successful order. Zone fees and bulk discounts are sample rates; final coverage requires store confirmation.</p><button class="primary checkout-button" type="submit">Review order →</button><p id="checkout-error" role="alert"></p></form>` : '<div class="empty"><h3>Keep your orders in one place.</h3><p>Sign in or create an account to check out.</p><button class="primary" id="checkout-signin">Sign in to order →</button></div>'}`
     : '<div class="empty"><h3>Your bag is waiting for something good.</h3><p>Add your favorite 25 kg sacks to get started.</p><button class="primary" id="continue-shopping">Explore the rice collection →</button></div>';
   if (!items.length) {
     $("#continue-shopping").onclick = () => $("#cart-dialog").close();
@@ -409,6 +472,7 @@ function cartView() {
   $("#checkout").onsubmit = async (e) => {
     e.preventDefault();
     const button = e.target.querySelector("button[type=submit]");
+    if (button.disabled) return;
     button.disabled = true;
     $("#checkout-error").textContent = "";
     try {
@@ -435,6 +499,10 @@ function cartView() {
           number === "4242424242424242" ? "success" : "failure";
       }
       data.items = items.map((p) => ({ id: p.id, quantity: cart[p.id] }));
+      if (!await reviewOrder(data, items)) {
+        button.disabled = false;
+        return;
+      }
       const result = await post("/api/orders", data);
       cart = {};
       save();

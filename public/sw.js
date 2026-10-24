@@ -1,4 +1,4 @@
-const CACHE = "sako-shell-v3";
+const CACHE = "sako-shell-v4";
 const SHELL = [
   "/",
   "/app.js",

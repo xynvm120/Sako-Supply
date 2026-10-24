@@ -38,6 +38,7 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
   await page
     .getByLabel("Password", { exact: true })
     .fill("defense-password-2026");
+  await page.getByLabel("Confirm password", { exact: true }).fill("defense-password-2026");
   await page.getByRole("checkbox", { name: /I agree/ }).check();
   await page.getByRole("button", { name: "Create account →" }).click();
   await expect(page.locator("#account-dialog")).not.toBeVisible();
@@ -56,7 +57,8 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
   const orderRequest = page.waitForRequest(
     (r) => r.url().endsWith("/api/orders") && r.method() === "POST",
   );
-  await cart.getByRole("button", { name: "Place order" }).click();
+  await cart.getByRole("button", { name: "Review order" }).click();
+  await page.getByRole("button", { name: "Confirm and place order" }).click();
   const submitted = (await orderRequest).postDataJSON();
   expect(submitted.cardNumber).toBeUndefined();
   expect(JSON.stringify(submitted)).not.toContain("4242");
@@ -144,7 +146,7 @@ test("admin dashboard product management, stock, customer history, and report ex
   await page
     .getByLabel("Password", { exact: true })
     .fill("browser-admin-password");
-  await page.locator("#customer-auth").getByRole("button").click();
+  await page.locator("#customer-auth button.primary").click();
   await expect(page.locator("#admin-link")).toBeVisible();
   await expect(page.locator("#admin-panel")).toContainText(
     "A good day to do business.",
@@ -451,7 +453,7 @@ test("dark mode follows system preference, persists a manual choice, and styles 
   await page
     .getByLabel("Password", { exact: true })
     .fill("browser-admin-password");
-  await page.locator("#customer-auth").getByRole("button").click();
+  await page.locator("#customer-auth button.primary").click();
   await expect(page.locator("#admin-panel")).toBeVisible();
   await expect(page.locator("#admin-dialog")).toHaveCSS(
     "color",
@@ -536,7 +538,29 @@ test("bulk tiers, zone fees, reorder, pending cancellation, and in-app updates w
   await page.getByLabel("Delivery address").fill("Fictional Tupi address");
   await expect(page.locator("#cart-discount")).toContainText("250.00");
   await expect(page.locator("#checkout-total")).toContainText("14,550.00");
-  await page.getByRole("button", { name: "Place order" }).click();
+  await page.getByRole("button", { name: "Review order" }).click();
+  const review = page.locator("#review-dialog");
+  await expect(review).toContainText("Fictional Tupi address");
+  await expect(review.locator(".review-totals")).toContainText("14,500.00");
+  await expect(review.locator(".review-totals")).toContainText("250.00");
+  await expect(review.locator(".review-totals")).toContainText("300.00");
+  await expect(review.locator(".review-totals")).toContainText("14,550.00");
+  expect(await (await page.request.get("/api/orders")).json()).toHaveLength(0);
+  await page.getByRole("button", { name: "Back to edit" }).click();
+  await expect(page.getByLabel("Delivery address")).toHaveValue("Fictional Tupi address");
+  await page.getByLabel("Delivery address").fill("Updated fictional Tupi address");
+  await page.getByRole("button", { name: "Review order" }).click();
+  await expect(review).toContainText("Updated fictional Tupi address");
+  await page.keyboard.press("Escape");
+  await expect(review).not.toBeVisible();
+  expect(await (await page.request.get("/api/orders")).json()).toHaveLength(0);
+  await page.getByRole("button", { name: "Review order" }).click();
+  await page.setViewportSize({width:390,height:844});
+  const bounds = await review.boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(390);
+  await page.getByRole("button", { name: "Confirm and place order" }).click();
+  await page.setViewportSize({width:1280,height:720});
   await page.locator("#success-receipt").waitFor();
   await page.locator("#success-receipt").click();
   await expect(page.locator("#receipt-content")).toContainText("Bulk discount");
@@ -665,7 +689,8 @@ test("policy navigation, signup acknowledgment, and customer recovery form", asy
   await page.getByRole('button',{name:'Forgot password?'}).click();
   await page.getByLabel('Email address').fill('unknown@example.test');
   await page.getByLabel('Recovery code').fill('invalid-code');
-  await page.getByLabel('New password').fill('new-password-123');
+  await page.getByLabel('New password', {exact:true}).fill('new-password-123');
+  await page.getByLabel('Confirm password', {exact:true}).fill('new-password-123');
   await page.getByRole('button',{name:'Reset password',exact:true}).click();
   await expect(page.locator('#reset-message')).toHaveText('Invalid or expired recovery code.');
   await page.getByRole('button',{name:'Back to sign in'}).click();
@@ -690,4 +715,51 @@ test("help and refund links, disconnected email state, and private recovery-link
   await expect(page.locator('#verify-email [name=email]')).toHaveValue('link@example.test');
   await page.getByRole('button',{name:'Verify email',exact:true}).click();
   await expect(page.locator('#verify-message')).toHaveText('Invalid or expired verification code.');
+});
+
+test("password visibility and matching confirmations protect signup and reset", async ({page,playwright}) => {
+  await page.setViewportSize({width:390,height:844});
+  await page.goto('/');
+  await page.locator('#account-link').click();
+  await page.getByLabel('Password',{exact:true}).fill('visibility-only');
+  await page.getByRole('button',{name:'Show password',exact:true}).click();
+  await expect(page.getByLabel('Password',{exact:true})).toHaveAttribute('type','text');
+  await expect(page.getByRole('button',{name:'Hide password',exact:true})).toHaveAttribute('aria-pressed','true');
+  await page.getByRole('button',{name:'Hide password',exact:true}).click();
+  await expect(page.getByLabel('Password',{exact:true})).toHaveAttribute('type','password');
+  await page.getByRole('button',{name:'Create account',exact:true}).click();
+  await page.getByLabel('Full name',{exact:true}).fill('Password Buyer');
+  await page.getByLabel('Email address').fill('password-ui@example.test');
+  await page.getByLabel('Password',{exact:true}).fill('signup-password-123');
+  await page.getByLabel('Confirm password',{exact:true}).fill('different-password');
+  await page.getByRole('checkbox',{name:/I agree/}).check();
+  await page.getByRole('button',{name:'Create account →'}).click();
+  expect(await page.getByLabel('Confirm password',{exact:true}).evaluate(el=>el.validationMessage)).toBe('Passwords do not match.');
+  await page.getByRole('button',{name:'Show confirm password',exact:true}).click();
+  await expect(page.getByLabel('Confirm password',{exact:true})).toHaveAttribute('type','text');
+  await page.getByLabel('Confirm password',{exact:true}).fill('signup-password-123');
+  const signup=page.waitForRequest(r=>r.url().endsWith('/api/auth/register') && r.method()==='POST');
+  await page.getByRole('button',{name:'Create account →'}).click();
+  expect((await signup).postDataJSON().password_confirm).toBeUndefined();
+  await expect(page.locator('#account-dialog')).not.toBeVisible();
+  const administrator=await playwright.request.newContext({baseURL:'http://127.0.0.1:32189'});
+  try {
+    await administrator.post('/api/auth/login',{data:{email:'admin@sakosupply.com',password:'browser-admin-password'}});
+    const issued=await administrator.post('/api/auth/recovery-code',{data:{email:'password-ui@example.test',identity_verified:true}});
+    const {code}=await issued.json();
+    await page.goto('/#'+new URLSearchParams({flow:'recover',email:'password-ui@example.test',code}));
+    await page.getByLabel('New password',{exact:true}).fill('reset-password-123');
+    await page.getByLabel('Confirm password',{exact:true}).fill('does-not-match');
+    await page.getByRole('button',{name:'Reset password',exact:true}).click();
+    expect(await page.getByLabel('Confirm password',{exact:true}).evaluate(el=>el.validationMessage)).toBe('Passwords do not match.');
+    await page.getByRole('button',{name:'Show new password',exact:true}).click();
+    await expect(page.getByLabel('New password',{exact:true})).toHaveAttribute('type','text');
+    await page.getByLabel('Confirm password',{exact:true}).fill('reset-password-123');
+    await page.getByRole('button',{name:'Reset password',exact:true}).click();
+    await expect(page.locator('#customer-auth')).toBeVisible();
+    await page.getByLabel('Email address').fill('password-ui@example.test');
+    await page.getByLabel('Password',{exact:true}).fill('reset-password-123');
+    await page.locator('#customer-auth button.primary').click();
+    await expect(page.locator('#account-dialog')).not.toBeVisible();
+  } finally { await administrator.dispose(); }
 });

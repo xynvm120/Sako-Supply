@@ -203,3 +203,36 @@ html[data-theme="dark"] .bulk-offer {
 .policy-page details { padding: 16px 0; border-bottom: 1px solid var(--line); }
 .policy-page summary { cursor: pointer; font-weight: 600; }
 .email-verification { margin: 16px 0 24px; }
+
+.password-control {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+.password-control label { min-width: 0; }
+.password-toggle {
+  min-width: 66px;
+  min-height: 44px;
+  margin-bottom: 2px;
+  padding: 10px;
+}
+.review-details, .review-totals {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 12px 20px;
+  margin: 24px 0;
+}
+.review-details dd, .review-totals dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.review-totals dd { text-align: right; }
+#review-dialog { max-width: 760px; }
+#review-dialog caption { text-align: left; padding: 12px 0; }
+@media (max-width: 480px) {
+  .review-details { grid-template-columns: 1fr; gap: 4px; }
+  .review-details dd { margin-bottom: 12px; }
+  #review-dialog .action-row { flex-direction: column; }
+}
