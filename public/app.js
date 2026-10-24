@@ -141,7 +141,7 @@ function render() {
     : '<p class="empty">No rice matches your search. Try another variety.</p>';
 }
 async function refresh() {
-  products = await api("/api/products");
+  [products, config] = await Promise.all([api("/api/products"), api("/api/config")]);
   let adjusted = false;
   for (const id of Object.keys(cart)) {
     const p = products.find((x) => x.id === +id);
@@ -266,7 +266,7 @@ function reviewOrder(data, items) {
   const dialog = $("#review-dialog");
   const quote = previewPricing(items, data.method, data.delivery_zone);
   const zone = (config.deliveryZones || []).find(z => z.id === data.delivery_zone);
-  $("#review-content").innerHTML = `<p>Check your details before confirming. Your order is submitted only after you confirm.</p><dl class="review-details"><dt>Customer</dt><dd>${esc(data.customer)}</dd><dt>Mobile number</dt><dd>${esc(data.phone)}</dd><dt>Receive your order</dt><dd>${data.method === "delivery" ? `Delivery · ${esc(zone?.name || "Selected zone")}` : "Store pickup"}</dd>${data.method === "delivery" ? `<dt>Delivery address</dt><dd>${esc(data.address)}</dd>` : ""}<dt>Payment method</dt><dd>${esc(paymentName(data.payment_method))}</dd></dl><div class="table-scroll"><table class="admin-table"><caption>Rice sacks in your order</caption><thead><tr><th>Product</th><th>Sacks</th><th>Price / sack</th><th>Subtotal</th></tr></thead><tbody>${items.map(p => `<tr><td>${esc(p.name)} · 25 kg</td><td>${cart[p.id]}</td><td>${money((p.price_centavos ?? Math.round(p.price * 100)) / 100)}</td><td>${money((p.price_centavos ?? Math.round(p.price * 100)) * cart[p.id] / 100)}</td></tr>`).join("")}</tbody></table></div><dl class="review-totals"><dt>Rice subtotal</dt><dd>${money(quote.subtotal / 100)}</dd><dt>Bulk discount</dt><dd>−${money(quote.discount / 100)}</dd><dt>Delivery fee</dt><dd>${money(quote.fee / 100)}</dd><dt>Total</dt><dd><strong>${money(quote.total / 100)}</strong></dd></dl><p class="form-note">Prices and availability are checked by the server when you confirm. Electronic payments are demonstrations. Driver location requires active sharing.</p><div class="action-row"><button type="button" class="secondary" id="review-edit">Back to edit</button><button type="button" class="primary" id="review-confirm">Confirm and place order</button></div>`;
+  $("#review-content").innerHTML = `<p>Check your details before confirming. Your order is submitted only after you confirm.</p><dl class="review-details"><dt>Customer</dt><dd>${esc(data.customer)}</dd><dt>Mobile number</dt><dd>${esc(data.phone)}</dd><dt>Receive your order</dt><dd>${data.method === "delivery" ? `Delivery · ${esc(zone?.name || "Selected zone")}` : "Store pickup"}</dd>${data.method === "delivery" ? `<dt>Delivery address</dt><dd>${esc(data.address)}</dd>` : ""}${data.method==='delivery' ? `<dt>Delivery schedule</dt><dd>${esc(data.delivery_schedule || "Not selected")}</dd><dt>Delivery acknowledgment consent</dt><dd>${data.proof_consent ? "Allowed" : "Not given"}</dd>` : ""}<dt>Payment method</dt><dd>${esc(paymentName(data.payment_method))}</dd></dl><div class="table-scroll"><table class="admin-table"><caption>Rice sacks in your order</caption><thead><tr><th>Product</th><th>Sacks</th><th>Price / sack</th><th>Subtotal</th></tr></thead><tbody>${items.map(p => `<tr><td>${esc(p.name)} · 25 kg</td><td>${cart[p.id]}</td><td>${money((p.price_centavos ?? Math.round(p.price * 100)) / 100)}</td><td>${money((p.price_centavos ?? Math.round(p.price * 100)) * cart[p.id] / 100)}</td></tr>`).join("")}</tbody></table></div><dl class="review-totals"><dt>Rice subtotal</dt><dd>${money(quote.subtotal / 100)}</dd><dt>Bulk discount</dt><dd>−${money(quote.discount / 100)}</dd><dt>Delivery fee</dt><dd>${money(quote.fee / 100)}</dd><dt>Total</dt><dd><strong>${money(quote.total / 100)}</strong></dd></dl><p class="form-note">Prices and availability are checked by the server when you confirm. Electronic payments are demonstrations. Driver location requires active sharing.</p><div class="action-row"><button type="button" class="secondary" id="review-edit">Back to edit</button><button type="button" class="primary" id="review-confirm">Confirm and place order</button></div>`;
   return new Promise(resolve => {
     let confirmed = false;
     dialog.addEventListener("close", () => {
@@ -434,7 +434,7 @@ function cartView() {
   const sub = items.reduce((a, p) => a + p.price * cart[p.id], 0),
     count = items.reduce((a, p) => a + cart[p.id], 0);
   $("#cart-content").innerHTML = items.length
-    ? `<div class="demo-notice">Prototype checkout · Electronic payments are for testing; no money is transferred.</div>${items.map((p) => `<div class="cart-row"><div><b>${esc(p.name)} · 25 kg</b><small>${money(p.price)} per sack</small></div><div class="quantity"><button data-change="${p.id}" data-delta="-1" aria-label="Decrease quantity">−</button><input class="cart-qty" data-quantity="${p.id}" aria-label="Sacks of ${esc(p.name)}" type="number" min="1" max="${p.stock}" value="${cart[p.id]}"><button data-change="${p.id}" data-delta="1" aria-label="Increase quantity">+</button></div><b>${money(p.price * cart[p.id])}</b><button class="remove" data-remove="${p.id}" aria-label="Remove ${esc(p.name)}">×</button></div>`).join("")}<p class="form-note">${count} sacks · ${count * 25} kg total. Every listed package is a 25 kg sack.</p>${user ? `<form id="checkout"><h3>Where’s your next good meal?</h3><div class="form-grid"><label>Full name<input name="customer" value="${esc(user.name)}" autocomplete="name" required maxlength="150"></label><label>Mobile number<input name="phone" value="${esc(user.phone)}" type="tel" autocomplete="tel" placeholder="09XXXXXXXXX" required pattern="[+0-9 -]{10,16}"></label><label class="wide">Receive your order<select name="method" id="method" required><option value="" selected disabled>Choose delivery or pickup</option><option value="delivery">Local delivery + tracking · Fee by zone</option><option value="pickup">Store pickup · Free · No delivery map</option></select></label><div class="fulfillment-hint wide" id="fulfillment-hint">Choose <b>Local delivery</b> for a delivery map, or <b>Store pickup</b> to collect your sacks yourself.</div><label class="wide" id="zone-label" hidden>Delivery zone<select id="delivery-zone" name="delivery_zone" aria-label="Delivery zone">${(config.deliveryZones || []).map((z) => `<option value="${esc(z.id)}">${esc(z.name)} · ${money(z.fee_centavos / 100)}</option>`).join("")}</select></label><label class="wide" id="address-label" hidden>Delivery address<textarea name="address" maxlength="500" autocomplete="street-address">${esc(user.address)}</textarea></label><label class="wide">Payment method<select name="payment_method" id="payment-method"><option value="cash">Cash on pickup / delivery</option><option value="card">Card</option><option value="gcash">GCash</option><option value="maya">Maya</option></select></label></div><div id="payment-fields"></div><div class="bulk-offer">Wholesale savings: 10+ sacks → ₱25 off each; 25+ sacks → ₱50 off each. Sample tiers; all rice types can be combined.</div><p id="cart-discount" class="form-note"></p><div class="total"><span>Total <small id="delivery-note"></small></span><b id="checkout-total">${money(sub)}</b></div><p class="form-note">Stock is reserved after a successful order. Zone fees and bulk discounts are sample rates; final coverage requires store confirmation.</p><button class="primary checkout-button" type="submit">Review order →</button><p id="checkout-error" role="alert"></p></form>` : '<div class="empty"><h3>Keep your orders in one place.</h3><p>Sign in or create an account to check out.</p><button class="primary" id="checkout-signin">Sign in to order →</button></div>'}`
+    ? `<div class="demo-notice">Prototype checkout · Electronic payments are for testing; no money is transferred.</div>${items.map((p) => `<div class="cart-row"><div><b>${esc(p.name)} · 25 kg</b><small>${money(p.price)} per sack</small></div><div class="quantity"><button data-change="${p.id}" data-delta="-1" aria-label="Decrease quantity">−</button><input class="cart-qty" data-quantity="${p.id}" aria-label="Sacks of ${esc(p.name)}" type="number" min="1" max="${p.stock}" value="${cart[p.id]}"><button data-change="${p.id}" data-delta="1" aria-label="Increase quantity">+</button></div><b>${money(p.price * cart[p.id])}</b><button class="remove" data-remove="${p.id}" aria-label="Remove ${esc(p.name)}">×</button></div>`).join("")}<p class="form-note">${count} sacks · ${count * 25} kg total. Every listed package is a 25 kg sack.</p>${user ? `<form id="checkout"><h3>Where’s your next good meal?</h3><div class="form-grid"><label>Full name<input name="customer" value="${esc(user.name)}" autocomplete="name" required maxlength="150"></label><label>Mobile number<input name="phone" value="${esc(user.phone)}" type="tel" autocomplete="tel" placeholder="09XXXXXXXXX" required pattern="[+0-9 -]{10,16}"></label><label class="wide">Receive your order<select name="method" id="method" required><option value="" selected disabled>Choose delivery or pickup</option><option value="delivery">Local delivery + tracking · Fee by zone</option><option value="pickup">Store pickup · Free · No delivery map</option></select></label><div class="fulfillment-hint wide" id="fulfillment-hint">Choose <b>Local delivery</b> for a delivery map, or <b>Store pickup</b> to collect your sacks yourself.</div><label class="wide" id="zone-label" hidden>Delivery zone<select id="delivery-zone" name="delivery_zone" aria-label="Delivery zone">${(config.deliveryZones || []).map((z) => `<option value="${esc(z.id)}">${esc(z.name)} · ${money(z.fee_centavos / 100)}</option>`).join("")}</select></label><label class="wide" id="schedule-label" hidden>Delivery schedule<select name="delivery_schedule" id="delivery-schedule"><option value="">Loading available dates…</option></select></label><label class="wide" id="proof-consent-label" hidden><input type="checkbox" name="proof_consent"> I allow the driver to record the receiver first name and a delivery acknowledgment for this order. No photo or signature is collected.</label><label class="wide" id="address-label" hidden>Delivery address<textarea name="address" maxlength="500" autocomplete="street-address">${esc(user.address)}</textarea></label><label class="wide">Payment method<select name="payment_method" id="payment-method"><option value="cash">Cash on pickup / delivery</option><option value="card">Card</option><option value="gcash">GCash</option><option value="maya">Maya</option></select></label></div><div id="payment-fields"></div><div class="bulk-offer">Wholesale savings: 10+ sacks → ₱25 off each; 25+ sacks → ₱50 off each. Sample tiers; all rice types can be combined.</div><p id="cart-discount" class="form-note"></p><div class="total"><span>Total <small id="delivery-note"></small></span><b id="checkout-total">${money(sub)}</b></div><p class="form-note">Stock is reserved after a successful order. Zone fees and bulk discounts are sample rates; final coverage requires store confirmation.</p><button class="primary checkout-button" type="submit">Review order →</button><p id="checkout-error" role="alert"></p></form>` : '<div class="empty"><h3>Keep your orders in one place.</h3><p>Sign in or create an account to check out.</p><button class="primary" id="checkout-signin">Sign in to order →</button></div>'}`
     : '<div class="empty"><h3>Your bag is waiting for something good.</h3><p>Add your favorite 25 kg sacks to get started.</p><button class="primary" id="continue-shopping">Explore the rice collection →</button></div>';
   if (!items.length) {
     $("#continue-shopping").onclick = () => $("#cart-dialog").close();
@@ -444,10 +444,19 @@ function cartView() {
     $("#checkout-signin").onclick = () => authView();
     return;
   }
+  const checkoutForm=$("#checkout");
+  api('/api/delivery-slots').then(slots=>{
+    if($("#checkout")!==checkoutForm) return;
+    $("#delivery-schedule").innerHTML=slots.filter(s=>s.remaining>0).map(s=>`<option value="${esc(s.value)}">${esc(s.date)} · ${esc(s.slot)} Philippine time · ${s.remaining} slots left</option>`).join('') || '<option value="">No available delivery slots</option>';
+  }).catch(()=>{if($("#checkout")===checkoutForm) $("#delivery-schedule").innerHTML='<option value="">Unable to load schedules. Reopen your bag to retry.</option>';});
+  $("#checkout").insertAdjacentHTML('afterbegin',`<p class="form-note">Minimum order: ${config.minSacks} sack(s), mixed rice types allowed. Unpaid Pending reservations expire after ${config.reservationMinutes} minutes unless the store starts preparing the order.</p>`);
   const updateQuote = () => {
     const delivery = $("#method").value === "delivery";
     $("#zone-label").hidden = !delivery;
     $("#address-label").hidden = !delivery;
+    $("#schedule-label").hidden=!delivery;
+    $("#proof-consent-label").hidden=!delivery;
+    $("#delivery-schedule").required=delivery;
     $("#address-label textarea").required = delivery;
     const quote = previewPricing(
       items,
@@ -477,6 +486,8 @@ function cartView() {
     $("#checkout-error").textContent = "";
     try {
       const data = Object.fromEntries(new FormData(e.target));
+      data.proof_consent=data.proof_consent==='on';
+      if(count<config.minSacks) throw Error(`Minimum order is ${config.minSacks} sacks.`);
       const method = data.payment_method;
       if (method === "card") {
         const number = $("#demo-card-number").value.replaceAll(" ", "");
@@ -668,7 +679,7 @@ async function receiptView(id) {
     const o = await api("/api/orders/" + encodeURIComponent(id)),
       sub = o.items.reduce((n, i) => n + i.quantity * i.price, 0);
     $("#receipt-content").innerHTML =
-      `<article class="receipt"><div class="receipt-brand">sako✳ <small>SUPPLY</small></div><div class="demo-notice">RESEARCH DEMO · NOT A TAX INVOICE / OFFICIAL RECEIPT</div><h2>${o.payment_status === "Unpaid" ? "Order acknowledgment" : "Demo order receipt"}</h2><p><b>${esc(o.id)}</b><br>${date(o.created)} (Philippine time)</p><div class="receipt-meta"><p><b>Customer</b><br>${esc(o.customer)}<br>${esc(o.phone)}</p><p><b>${o.method === "pickup" ? "Store pickup" : "Delivery"}</b><br>${o.method === "delivery" ? esc(o.address) : "Pickup details to be confirmed by store"}</p></div><table><thead><tr><th>Rice</th><th>Sacks</th><th>Unit price${o.discount_centavos ? " (base)" : ""}</th><th>Amount</th></tr></thead><tbody>${o.items.map((i) => `<tr><td>${esc(i.name)} · ${i.weight} kg</td><td>${i.quantity}</td><td>${money((i.original_price_centavos ?? Math.round(i.price * 100)) / 100)}</td><td>${money(((i.original_price_centavos ?? Math.round(i.price * 100)) * i.quantity) / 100)}</td></tr>`).join("")}</tbody></table><div class="receipt-totals"><p><span>Subtotal</span><b>${money((o.subtotal_centavos ?? Math.round(sub * 100)) / 100)}</b></p>${o.discount_centavos ? `<p><span>Bulk discount</span><b>−${money(o.discount_centavos / 100)}</b></p>` : ""}<p><span>Delivery fee</span><b>${money(o.delivery_fee)}</b></p><p class="grand"><span>Total</span><b>${money(o.total)}</b></p></div><p>Payment: ${esc(paymentName(o.payment_method))}<br>Status: <b>${esc(o.payment_status)}</b><br>Order: ${esc(o.status)}</p><p class="form-note">${o.payment_status === "Unpaid" ? "This acknowledges an order, not receipt of payment. " : ""}No actual electronic payment was processed. No VAT or tax computation is represented. Sample prices only. Thank you for supporting your local bigasan.</p></article>`;
+      `<article class="receipt"><div class="receipt-brand">sako✳ <small>SUPPLY</small></div><div class="demo-notice">RESEARCH DEMO · NOT A TAX INVOICE / OFFICIAL RECEIPT</div><h2>${o.payment_status === "Unpaid" ? "Order acknowledgment" : "Demo order receipt"}</h2><p><b>${esc(o.id)}</b><br>${date(o.created)} (Philippine time)</p><div class="receipt-meta"><p><b>Customer</b><br>${esc(o.customer)}<br>${esc(o.phone)}</p><p><b>${o.method === "pickup" ? "Store pickup" : "Delivery"}</b><br>${o.method === "delivery" ? esc(o.address) : "Pickup details to be confirmed by store"}</p></div>${o.delivery_date ? `<p>Delivery schedule: ${esc(o.delivery_date)} · ${esc(o.delivery_slot)} Philippine time</p>` : ""}<table><thead><tr><th>Rice</th><th>Sacks</th><th>Unit price${o.discount_centavos ? " (base)" : ""}</th><th>Amount</th></tr></thead><tbody>${o.items.map((i) => `<tr><td>${esc(i.name)} · ${i.weight} kg</td><td>${i.quantity}</td><td>${money((i.original_price_centavos ?? Math.round(i.price * 100)) / 100)}</td><td>${money(((i.original_price_centavos ?? Math.round(i.price * 100)) * i.quantity) / 100)}</td></tr>`).join("")}</tbody></table><div class="receipt-totals"><p><span>Subtotal</span><b>${money((o.subtotal_centavos ?? Math.round(sub * 100)) / 100)}</b></p>${o.discount_centavos ? `<p><span>Bulk discount</span><b>−${money(o.discount_centavos / 100)}</b></p>` : ""}<p><span>Delivery fee</span><b>${money(o.delivery_fee)}</b></p><p class="grand"><span>Total</span><b>${money(o.total)}</b></p></div><p>Payment: ${esc(paymentName(o.payment_method))}<br>Status: <b>${esc(o.payment_status)}</b><br>Order: ${esc(o.status)}</p><p class="form-note">${o.payment_status === "Unpaid" ? "This acknowledges an order, not receipt of payment. " : ""}No actual electronic payment was processed. No VAT or tax computation is represented. Sample prices only. Thank you for supporting your local bigasan.</p></article>`;
     show("#receipt-dialog");
   } catch (e) {
     toast(e.message);
@@ -677,8 +688,10 @@ async function receiptView(id) {
 $("#print-receipt").onclick = () => window.print();
 let trackingGeneration = 0;
 let mapResizeObserver = null;
+let reservationTimer=null;
 function stopTracking() {
   trackingGeneration++;
+  clearInterval(reservationTimer);
   mapResizeObserver?.disconnect();
   mapResizeObserver = null;
   clearInterval(trackingTimer);
@@ -703,9 +716,32 @@ async function orderView(id) {
       <div class="order-summary"><div><span class="eyebrow">${delivery ? "YOUR DELIVERY" : "YOUR STORE PICKUP"}</span><h3>${esc(o.id)}</h3><p>${esc(o.customer)} · ${esc(o.phone)}</p></div><div><span id="live-order-status">${badge(o.status)}</span><p class="order-summary-total">${money(o.total)}</p></div></div>
       ${delivery ? `<section class="tracking-card"><div class="section-line"><div><h3>Your delivery map</h3><p class="form-note">Street map · Driver device location</p></div><span class="live-pill"><i></i> Checks every 5s</span></div><div id="delivery-map" aria-label="Delivery street map"></div><p id="tracking-label" role="status">Checking for driver location…</p><p id="map-tile-note" class="form-note">Street tiles require internet. Waiting for map tiles…</p><p class="form-note">The marker appears only when the assigned driver shares a location. Stale positions are labelled. The address below is not automatically geocoded; no route or arrival percentage is guessed.</p>${isAdmin ? `<div class="action-row"><button class="secondary" id="driver-issue">Issue driver link</button><button class="secondary" id="driver-revoke">Revoke driver link</button></div><div id="driver-link-result" role="status"></div>` : ""}</section>` : `<section class="pickup-card"><div class="pickup-icon">↗</div><div><h3>You chose store pickup</h3><p>You’ll collect your sacks from the store. Pickup orders do not have a delivery map.</p><p class="form-note">Status updates automatically. The store will contact you when your order is ready.</p></div></section>`}
       <div class="order-info-grid"><section><h3>${delivery ? "Delivery address" : "Collection"}</h3><p>${delivery ? esc(o.address) : "Store pickup · Collection details to be confirmed"}</p><h3>Payment</h3><p>${esc(paymentName(o.payment_method))} · <span id="live-payment-status">${badge(o.payment_status)}</span></p><h3>Your sacks</h3><ul class="order-items">${o.items.map((i) => `<li><span>${i.quantity} × ${esc(i.name)} · ${i.weight} kg</span><b>${money(i.price * i.quantity)}</b></li>`).join("")}</ul></section><section><h3>Order timeline</h3><ol id="live-timeline" class="timeline"></ol><p class="form-note" id="order-last-updated"></p></section></div><div class="action-row"><button class="primary" id="detail-receipt">Print receipt</button><button class="secondary" id="refresh-order">Refresh status</button></div>`;
+    $("#detail-receipt").closest(".action-row").before(Object.assign(document.createElement('section'),{id:'order-extras'}));
+    $("#order-extras").innerHTML=`<p>Delivery schedule: ${o.delivery_date ? esc(o.delivery_date+' · '+o.delivery_slot+' Philippine time') : o.method==='pickup' ? 'Store pickup' : 'Not scheduled — contact store'}</p><p id="reservation-countdown" role="status"></p><p id="cancellation-reason"></p><div id="delivery-proof"></div><div id="feedback-section"></div>`;
+    let currentOrder=o, proofSnapshot='';
+    const countdown=()=>{
+      const label=$("#reservation-countdown");
+      if(!label) return;
+      if(currentOrder.status!=='Pending'||currentOrder.payment_status!=='Unpaid'||!currentOrder.reservation_until) {label.textContent='';return;}
+      const seconds=Math.max(0,Math.ceil((currentOrder.reservation_until-Date.now())/1000));
+      label.textContent=`Unpaid reservation: ${Math.floor(seconds/60)}m ${seconds%60}s remaining for store acceptance. ${seconds===0 ? 'Checking expiry…' : 'Preparation stops the expiry timer.'}`;
+    };
+    reservationTimer=setInterval(countdown,1000);
     $("#detail-receipt").onclick = () => receiptView(o.id);
     $("#refresh-order").onclick = () => orderView(o.id);
     function updateOrder(latest) {
+      currentOrder=latest;countdown();
+      $("#cancellation-reason").textContent=latest.cancellation_reason || '';
+      if(JSON.stringify(latest.proof)!==proofSnapshot) {
+        proofSnapshot=JSON.stringify(latest.proof);
+        $("#delivery-proof").innerHTML=latest.proof ? `<h3>Driver-reported delivery acknowledgment</h3><p>Receiver: ${esc(latest.proof.receiver)} · ${date(latest.proof.created)}</p><p>${esc(latest.proof.notes)}</p><p>${latest.proof.customer_confirmed ? 'Customer confirmed receipt: '+date(latest.proof.customer_confirmed) : 'Not yet confirmed by customer.'}</p>${!isAdmin&&!latest.proof.customer_confirmed ? '<button class="secondary" id="confirm-received">Confirm I received this order</button>' : ''}` : '';
+        if($("#confirm-received")) $("#confirm-received").onclick=async()=>{try {await post(`/api/orders/${o.id}/confirm-delivery`,{confirmed:true});await orderView(o.id);}catch(e){toast(e.message);}};
+      }
+      if(!isAdmin && latest.status==='Completed' && !$("#feedback-form")) {
+        $("#feedback-section").innerHTML=`<h3>Your order feedback</h3><p class="form-note">Visible to you and the store administrator, not posted publicly.</p><form id="feedback-form"><label>Rating<select name="rating" aria-label="Rating" required>${[5,4,3,2,1].map(n=>`<option value="${n}" ${latest.feedback?.rating===n ? 'selected' : ''}>${n} star${n===1?'':'s'}</option>`).join('')}</select></label><label>Comments<textarea name="comment" aria-label="Comments" maxlength="1000">${esc(latest.feedback?.comment || '')}</textarea></label><button class="secondary">Save feedback</button><p id="feedback-message" role="status"></p></form>`;
+        $("#feedback-form").onsubmit=async e=>{e.preventDefault();const values=Object.fromEntries(new FormData(e.target));try {await post(`/api/orders/${o.id}/feedback`,{rating:Number(values.rating),comment:values.comment});$("#feedback-message").textContent='Feedback saved. You can edit it here.';}catch(e){$("#feedback-message").textContent=e.message;}};
+      }
+
       $("#live-order-status").innerHTML = badge(latest.status);
       $("#live-payment-status").innerHTML = badge(latest.payment_status);
       $("#live-timeline").innerHTML =
@@ -817,6 +853,8 @@ async function adminView(tab = adminTab) {
         ["customers", "Customers"],
         ["reports", "Reports"],
         ["audit", "Admin audit"],
+        ["settings", "Store settings"],
+        ["feedback", "Customer feedback"],
       ]
         .map(
           ([key, label]) =>
@@ -840,6 +878,8 @@ async function adminView(tab = adminTab) {
         toast(e.message);
       }
     };
+    if (tab === "settings") await settingsPanel();
+    if (tab === "feedback") await feedbackPanel();
     if (tab === "overview") overview();
     if (tab === "orders") ordersPanel();
     if (tab === "inventory") inventoryPanel();
@@ -1303,4 +1343,14 @@ async function auditPanel() {
       )
       .join("") +
     "</tbody></table></div>";
+}
+
+async function settingsPanel() {
+ const settings=await api('/api/admin/store-settings');
+ $('#admin-panel').innerHTML=`<h2>Wholesale settings</h2><p>Changes apply to new orders. Existing reservations retain their deadlines. Delivery capacity is per date/time window; reducing it does not cancel existing bookings.</p><form id="store-settings"><label>Minimum sacks per order<input type="number" name="min_sacks" min="1" max="1000" value="${settings.min_sacks}" required></label><label>Unpaid Pending reservation minutes<input type="number" name="reservation_minutes" min="5" max="1440" value="${settings.reservation_minutes}" required></label><label>Orders per delivery window<input type="number" name="slot_capacity" min="1" max="100" value="${settings.slot_capacity}" required></label><button class="primary">Save store settings</button><p id="settings-message" role="status"></p></form>`;
+ $('#store-settings').onsubmit=async e=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.target));for(const key of Object.keys(b)) b[key]=Number(b[key]);try {await post('/api/admin/store-settings',b,'PATCH');config=await api('/api/config');$('#settings-message').textContent='Settings saved.';}catch(e){$('#settings-message').textContent=e.message;}};
+}
+async function feedbackPanel() {
+ const rows=await api('/api/admin/feedback');
+ $('#admin-panel').innerHTML='<h2>Customer feedback</h2>'+ (rows.map(f=>`<article class="order"><h3>${esc(f.order_id)} · ${f.rating}/5</h3><p>${esc(f.name)} · ${date(f.updated)}</p><p>${esc(f.comment)}</p></article>`).join('') || '<p>No completed-order feedback yet.</p>');
 }

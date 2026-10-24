@@ -868,3 +868,63 @@ test('plain-language agreement and back-to-top work on pages and dialogs',async(
   await page.getByRole('button',{name:'Back to top of page'}).click();
   await expect.poll(()=>page.evaluate(()=>scrollY)).toBe(0);
 });
+
+test('wholesale settings, delivery schedule, consented proof and customer feedback work together',async({page,browser})=>{
+ await page.goto('/');
+ await page.request.post('/api/auth/register',{data:{name:'Wholesale features',email:'features@example.test',password:'features-password'}});
+ await page.reload();
+ const adminContext=await browser.newContext(),driverContext=await browser.newContext();
+ try {
+  await adminContext.request.post('http://127.0.0.1:32189/api/auth/login',{data:{email:'admin@sakosupply.com',password:'browser-admin-password'}});
+  const admin=await adminContext.newPage();await admin.goto('http://127.0.0.1:32189/');
+  await admin.locator('#admin-link').click();await admin.getByRole('button',{name:'Store settings',exact:true}).click();
+  await admin.getByLabel('Minimum sacks per order').fill('2');
+  await admin.getByRole('button',{name:'Save store settings'}).click();
+  await expect(admin.locator('#settings-message')).toHaveText('Settings saved.');
+  await page.getByRole('button',{name:'View Dinorado details',exact:true}).click();
+  await page.getByLabel('Number of sacks').fill('2');
+  await page.locator('#detail-add').getByRole('button').click();
+  await page.locator('#product-dialog').getByRole('button',{name:'Close',exact:true}).click();
+  await page.locator('#cart-button').click();
+  await expect(page.locator('#checkout')).toContainText('Minimum order: 2');
+  await page.getByLabel('Mobile number').fill('09123456789');
+  await page.getByLabel('Receive your order').selectOption('delivery');
+  await expect(page.locator('#delivery-schedule option')).not.toHaveCount(1);
+  await page.locator('[name=proof_consent]').check();
+  await page.getByLabel('Delivery address').fill('Feature test delivery address');
+  await page.getByRole('button',{name:'Review order',exact:false}).click();
+  await expect(page.locator('#review-dialog')).toContainText('Delivery schedule');
+  await page.getByRole('button',{name:'Confirm and place order'}).click();
+  await expect(page.locator('#cart-content')).toContainText('Your sacks are reserved.');
+  const order=(await (await page.request.get('/api/orders')).json())[0];
+  expect(order.delivery_date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  expect(order.proof_consent).toBe(1);
+  await page.getByRole('button',{name:'Open delivery map'}).click();
+  await expect(page.locator('#reservation-countdown')).toContainText('remaining for store acceptance');
+  for(const status of ['Preparing','Out for delivery']) await adminContext.request.patch('http://127.0.0.1:32189/api/admin/status',{data:{id:order.id,status}});
+  const access=await (await adminContext.request.post('http://127.0.0.1:32189/api/admin/driver-access',{data:{id:order.id}})).json();
+  const driver=await driverContext.newPage();await driver.goto('http://127.0.0.1:32189'+access.path);
+  await expect(driver.locator('#proof-section')).toBeVisible();
+  await driver.getByLabel('Receiver first name').fill('Alex');
+  await driver.getByLabel('Delivery notes').fill('Two sacks received at the agreed location.');
+  await driver.locator('[name=recipient_confirmed]').check();
+  await driver.getByRole('button',{name:'Record delivery acknowledgment'}).click();
+  await expect(driver.locator('#proof-message')).toContainText('recorded');
+  await page.bringToFront();
+  await expect(page.locator('#delivery-proof')).toContainText('Alex',{timeout:12000});
+  await page.getByRole('button',{name:'Confirm I received this order'}).click();
+  await expect(page.locator('#delivery-proof')).toContainText('Customer confirmed receipt');
+  await adminContext.request.patch('http://127.0.0.1:32189/api/admin/status',{data:{id:order.id,status:'Completed'}});
+  await expect(page.locator('#feedback-form')).toBeVisible({timeout:12000});
+  await page.getByLabel('Rating',{exact:true}).selectOption('4');
+  await page.getByLabel('Comments',{exact:true}).fill('<img src=x onerror=alert(1)> Helpful delivery');
+  await page.getByRole('button',{name:'Save feedback'}).click();
+  await expect(page.locator('#feedback-message')).toContainText('Feedback saved');
+  await admin.bringToFront();await admin.getByRole('button',{name:'Customer feedback',exact:true}).click();
+  await expect(admin.locator('#admin-panel')).toContainText('Helpful delivery');
+  await expect(admin.locator('#admin-panel img')).toHaveCount(0);
+ } finally {
+  await adminContext.request.patch('http://127.0.0.1:32189/api/admin/store-settings',{data:{min_sacks:1,reservation_minutes:30,slot_capacity:5}});
+  await driverContext.close();await adminContext.close();
+ }
+});

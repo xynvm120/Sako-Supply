@@ -64,3 +64,7 @@ CREATE TABLE IF NOT EXISTS driver_locations (
  observed INTEGER NOT NULL,
  updated INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS store_settings (id INTEGER PRIMARY KEY CHECK(id=1), min_sacks INTEGER NOT NULL DEFAULT 1, reservation_minutes INTEGER NOT NULL DEFAULT 30, slot_capacity INTEGER NOT NULL DEFAULT 5);
+INSERT OR IGNORE INTO store_settings(id) VALUES(1);
+CREATE TABLE IF NOT EXISTS delivery_proofs (order_id TEXT PRIMARY KEY REFERENCES orders(id), receiver TEXT NOT NULL, notes TEXT NOT NULL, created TEXT NOT NULL, customer_confirmed TEXT);
+CREATE TABLE IF NOT EXISTS order_feedback (order_id TEXT PRIMARY KEY REFERENCES orders(id), user_id TEXT NOT NULL REFERENCES users(id), rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5), comment TEXT NOT NULL, updated TEXT NOT NULL);

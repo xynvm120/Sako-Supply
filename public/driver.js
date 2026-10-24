@@ -26,11 +26,13 @@ async function check() {
   try {
     const session=await api('/api/driver/session');
     permitted=session.status==='Out for delivery';
+    $('#proof-section').hidden=!permitted || !session.proof_allowed || session.proof_recorded;
     $('#driver-order').textContent=`Order ${session.order_id} · ${session.status}`;
     if(!permitted && active) await stop('Delivery is no longer active. Sharing stopped.');
     if(!permitted) $('#driver-status').textContent='Waiting for the administrator to set Out for delivery.';
   } catch(e) {
     permitted=false;
+    $('#proof-section').hidden=true;
     if(active) await stop('Driver access is unavailable. Sharing stopped.');
     $('#driver-order').textContent=e.message;
   }
@@ -73,3 +75,10 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden && active) 
 addEventListener('pagehide',()=>{if(active) void stop('Sharing stopped.',true);});
 if(!/^[a-f0-9]{64}$/.test(token)) $('#driver-order').textContent='Open the complete private link issued by your administrator.';
 else { void check();setInterval(check,10000); }
+
+$('#proof-form').onsubmit=async e=>{
+ e.preventDefault();const button=e.target.querySelector('button');button.disabled=true;
+ const b=Object.fromEntries(new FormData(e.target));b.recipient_confirmed=b.recipient_confirmed==='on';
+ try {await api('/api/driver/proof','POST',b);$('#proof-message').textContent='Delivery acknowledgment recorded. Ask the customer to confirm receipt in their order.';button.textContent='Acknowledgment recorded';}
+ catch(e){$('#proof-message').textContent=e.message;button.disabled=false;}
+};

@@ -1,3 +1,5 @@
+import { wholesaleRoute } from "./routes/wholesale.js";
+import { storeSettings,expireReservations } from "./services/wholesale.js";
 import { trackingRoute } from "./routes/tracking.js";
 import { mapConfig, cleanupTracking } from "./services/tracking.js";
 import { mailReady } from "./services/mail.js";
@@ -17,7 +19,6 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 const root = path.dirname(fileURLToPath(import.meta.url));
-const minSacks = 1; // Wholesale catalog; no invented minimum purchase requirement.
 const deliveryFee = 150;
 const defaultProductImages = {
   Dinorado: "dinorado",
@@ -52,6 +53,8 @@ function orderDTO(o) {
         "SELECT status,created FROM order_events WHERE order_id=? ORDER BY id",
       )
       .all(o.id),
+    proof: db.prepare("SELECT * FROM delivery_proofs WHERE order_id=?").get(o.id) || null,
+    feedback: db.prepare("SELECT rating,comment,updated FROM order_feedback WHERE order_id=?").get(o.id) || null,
     demo: true,
   };
 }
@@ -105,6 +108,7 @@ const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     const p = url.pathname;
     const method = req.method;
+    if(p.startsWith("/api/")) expireReservations();
     if (
       ["POST", "PATCH", "DELETE", "PUT"].includes(method) &&
       req.headers.origin &&
@@ -123,12 +127,14 @@ const server = http.createServer(async (req, res) => {
         map: mapConfig(),
         supportEmail: /^\S+@\S+\.\S+$/.test(process.env.SUPPORT_EMAIL || "") ? process.env.SUPPORT_EMAIL : null,
         weight: 25,
-        minSacks,
+        minSacks: storeSettings().min_sacks,
+        reservationMinutes: storeSettings().reservation_minutes,
         deliveryFee,
         deliveryZones,
         bulkTiers,
         paymentMethods: ["cash", "card", "gcash", "maya"],
       });
+    if(p==='/api/delivery-slots' || ['/api/admin/store-settings','/api/admin/feedback'].includes(p) || /^\/api\/orders\/[^/]+\/(feedback|confirm-delivery)$/.test(p)) return await wholesaleRoute({p,method,req,res,send});
     if (p === "/api/products" && method === "GET")
       return send(res, 200, allProducts());
     if (
@@ -388,6 +394,8 @@ const server = http.createServer(async (req, res) => {
     });
   }
 });
+expireReservations();
+setInterval(()=>{try {expireReservations();}catch(e){console.error("Reservation cleanup failed:",e.message);}},30000).unref();
 cleanupTracking();
 setInterval(cleanupTracking, 60000).unref();
 if (process.env.AUTO_BACKUP !== "off") scheduleBackups();

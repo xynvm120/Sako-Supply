@@ -31,7 +31,21 @@ export async function trackingRoute({p,method,req,res,send}) {
   }
   if (p==='/api/driver/session' && method==='GET') {
     const access=driver(req);
-    return send(res,200,{order_id:access.order_id,status:access.status,expires:access.expires});
+    return send(res,200,{order_id:access.order_id,status:access.status,expires:access.expires,proof_recorded:Boolean(db.prepare("SELECT order_id FROM delivery_proofs WHERE order_id=?").get(access.order_id)),proof_allowed:Boolean(db.prepare("SELECT proof_consent FROM orders WHERE id=?").get(access.order_id)?.proof_consent)});
+  }
+  if(p==='/api/driver/proof' && method==='POST') {
+    const b=await body(req);
+    transaction(()=>{
+      const access=driver(req);
+      const order=db.prepare('SELECT * FROM orders WHERE id=?').get(access.order_id);
+      if(order.status!=='Out for delivery' || order.proof_consent!==1 || b.recipient_confirmed!==true) throw fail(400,'Active delivery, customer consent and recipient acknowledgment are required.');
+      const receiver=str(b.receiver,100),notes=str(b.notes,500);
+      if(!receiver || typeof b.notes!=='string' || b.notes.length>500) throw fail(400,'Enter the receiver first name and notes up to 500 characters.');
+      if(db.prepare('SELECT order_id FROM delivery_proofs WHERE order_id=?').get(order.id)) throw fail(409,'Delivery acknowledgment is already recorded.');
+      db.prepare('INSERT INTO delivery_proofs(order_id,receiver,notes,created) VALUES(?,?,?,?)').run(order.id,receiver,notes,now());
+      db.prepare('INSERT INTO notifications(user_id,order_id,message,created) VALUES(?,?,?,?)').run(order.user_id,order.id,'The driver recorded a delivery acknowledgment. Open your order to review and confirm receipt.',now());
+    });
+    return send(res,201,{ok:true});
   }
   if (p==='/api/driver/location' && ['POST','DELETE'].includes(method)) {
     const access=driver(req);

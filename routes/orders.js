@@ -1,3 +1,4 @@
+import { storeSettings,validateSchedule } from "../services/wholesale.js";
 import { trackingDTO } from "../services/tracking.js";
 import { db, transaction } from "../db.js";
 import { randomBytes } from "node:crypto";
@@ -101,6 +102,9 @@ export async function ordersRoute({ p, method, req, res, send, orderDTO }) {
         items.push({ ...product, quantity: i.quantity });
         subtotal += product.price * i.quantity;
       }
+      const settings=storeSettings();
+      if(items.reduce((n,i)=>n+i.quantity,0)<settings.min_sacks) throw fail(400,`Minimum order is ${settings.min_sacks} sacks. Mixed rice types count together.`);
+      const schedule=b.method==='delivery' ? validateSchedule(b.delivery_schedule) : null;
       const quote = priceOrder(items, b.method, b.delivery_zone || "koronadal");
       for (let index = 0; index < items.length; index++)
         Object.assign(items[index], quote.lines[index]);
@@ -146,6 +150,7 @@ export async function ordersRoute({ p, method, req, res, send, orderDTO }) {
         quote.delivery_zone,
         id,
       );
+      db.prepare("UPDATE orders SET delivery_date=?,delivery_slot=?,reservation_until=?,proof_consent=? WHERE id=?").run(schedule?.date||null,schedule?.slot||null,paymentStatus==='Unpaid' ? Date.now()+settings.reservation_minutes*60000 : null,b.method==='delivery' && b.proof_consent===true ? 1 : 0,id);
       for (const i of items) {
         db.prepare("UPDATE products SET stock=stock-? WHERE id=?").run(
           i.quantity,

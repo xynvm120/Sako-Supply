@@ -17,6 +17,7 @@ function column(table, name, definition) {
   )
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${definition}`);
 }
+for(const [name,type] of [["delivery_date","TEXT"],["delivery_slot","TEXT"],["reservation_until","INTEGER"],["proof_consent","INTEGER NOT NULL DEFAULT 0"],["cancellation_reason","TEXT"]]) column("orders",name,type);
 column("users", "email_verified_at", "TEXT");
 for (const [name, definition] of [
   ["description", "TEXT NOT NULL DEFAULT ''"],
@@ -35,6 +36,8 @@ for (const [name, definition] of [
 ])
   column("orders", name, definition);
 db.exec("CREATE INDEX IF NOT EXISTS orders_user ON orders(user_id);");
+db.exec("CREATE INDEX IF NOT EXISTS orders_delivery_schedule ON orders(delivery_date,delivery_slot,status); CREATE INDEX IF NOT EXISTS orders_reservation_expiry ON orders(status,payment_status,reservation_until);");
+
 if (!db.prepare("SELECT count(*) n FROM products").get().n) {
   const insert = db.prepare(
     "INSERT INTO products(id,name,variety,weight,price,stock,tag) VALUES(?,?,?,?,?,?,?)",

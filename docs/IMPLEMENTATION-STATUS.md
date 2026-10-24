@@ -38,3 +38,7 @@ These were outside the prioritized defense pass. Real payment/location services 
 ## Container validation limitation
 
 The Dockerfile was exercised through base-image retrieval and build execution, but this cloud machine's Docker build network could not resolve the package registry/proxy (EAI_AGAIN). No TLS or integrity verification was disabled. Native npm installation and all application tests remain independent of that Docker network issue. A completed Docker image build/run is not claimed. Build it on a machine with working container DNS/egress before using it for deployment.
+
+## Wholesale operations extension
+
+Minimum sack settings, capacity-checked Philippine-time delivery windows, unpaid Pending reservation expiry, optional consent-based text delivery acknowledgments with separate customer confirmation, and private completed-order feedback are implemented. Defaults: one sack minimum, 30-minute new unpaid Pending reservation, five orders per window. See README for operating rules. Proof is a reported acknowledgment, not a photo/signature or independently verified identity. These additions do not connect a real payment gateway or a physical delivery operation.

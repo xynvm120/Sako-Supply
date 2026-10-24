@@ -275,3 +275,9 @@ html[data-theme="dark"] .bulk-offer {
 #wallet-dialog { max-width: 660px; }
 .agreement-summary h4 { margin: 0 0 10px; }
 .agreement-summary p { font-size: 13px; }
+
+#proof-consent-label, #proof-form label:has(input[type="checkbox"]) { line-height: 1.6; }
+#proof-consent-label input, #proof-form input[type="checkbox"] { display: inline-block; width: 20px; height: 20px; margin: 0 8px 0 0; padding: 0; vertical-align: middle; }
+#order-extras { margin: 24px 0; padding: 20px; border: 1px solid var(--line); border-radius: 18px; overflow-wrap: anywhere; }
+#store-settings { max-width: 540px; }
+#reservation-countdown { font-weight: 600; }

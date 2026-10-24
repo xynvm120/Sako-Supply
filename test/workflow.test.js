@@ -1148,3 +1148,59 @@ test('driver GPS is scoped, consent-controlled, validated, stale-aware and revok
     sql.close();
   } finally {await stop(child);rmSync(dir,{recursive:true,force:true});}
 });
+
+test('wholesale settings, atomic slot capacity/expiry, delivery consent and completed feedback',async()=>{
+ const dir=mkdtempSync(path.join(os.tmpdir(),'sako-wholesale-'));
+ const a=await start(dir,32197), b=await start(dir,32198),call=client(32197),otherServer=client(32198);
+ try {
+  const admin=await call('/api/auth/login','POST',{email:'admin@sakosupply.com',password:'test-password'});
+  const buyer=await call('/api/auth/register','POST',{name:'Scheduled buyer',email:'schedule@example.test',password:'schedule-password'});
+  const other=await call('/api/auth/register','POST',{name:'Other buyer',email:'schedule-other@example.test',password:'schedule-password'});
+  const settings={min_sacks:3,reservation_minutes:5,slot_capacity:1};
+  assert.equal((await call('/api/admin/store-settings','PATCH',settings,buyer.cookie)).status,401);
+  assert.equal((await call('/api/admin/store-settings','PATCH',{...settings,min_sacks:0},admin.cookie)).status,400);
+  assert.equal((await call('/api/admin/store-settings','PATCH',settings,admin.cookie)).status,200);
+  assert.equal((await call('/api/config')).data.minSacks,3);
+  const slots=(await call('/api/delivery-slots')).data;
+  const order={customer:'Scheduled buyer',phone:'09123456789',address:'Sample',method:'delivery',delivery_schedule:slots[0].value,payment_method:'cash',items:[{id:1,quantity:3}]};
+  assert.equal((await call('/api/orders','POST',{...order,items:[{id:1,quantity:2}]},buyer.cookie)).status,400);
+  assert.equal((await call('/api/orders','POST',{...order,delivery_schedule:'2020-01-01|bad'},buyer.cookie)).status,400);
+  const original=(await call('/api/products')).data[0].stock;
+  const results=await Promise.all([call('/api/orders','POST',order,buyer.cookie),otherServer('/api/orders','POST',order,other.cookie)]);
+  assert.deepEqual(results.map(r=>r.status).sort(),[201,400]);
+  const winner=results.find(r=>r.status===201).data;
+  assert.ok(winner.reservation_until>Date.now());
+  assert.equal((await call('/api/delivery-slots')).data[0].remaining,0);
+  const sql=new DatabaseSync(path.join(dir,'sako.sqlite'));
+  sql.prepare('UPDATE orders SET reservation_until=0 WHERE id=?').run(winner.id);
+  await Promise.all([call('/api/products'),otherServer('/api/products')]);
+  assert.equal((await call('/api/products')).data[0].stock,original);
+  assert.equal(sql.prepare('SELECT status FROM orders WHERE id=?').get(winner.id).status,'Cancelled');
+  assert.equal(sql.prepare("SELECT count(*) n FROM stock_movements WHERE reason=?").get('Reservation expired '+winner.id).n,1);
+  assert.equal((await call('/api/delivery-slots')).data[0].remaining,1);
+  const created=await call('/api/orders','POST',{...order,proof_consent:true},buyer.cookie);
+  const id=created.data.id;
+  assert.equal((await call(`/api/orders/${id}/feedback`,'POST',{rating:5,comment:'Early'},buyer.cookie)).status,400);
+  await call('/api/admin/status','PATCH',{id,status:'Preparing'},admin.cookie);
+  sql.prepare('UPDATE orders SET reservation_until=0 WHERE id=?').run(id);
+  await call('/api/products');
+  assert.equal(sql.prepare('SELECT status FROM orders WHERE id=?').get(id).status,'Preparing');
+  await call('/api/admin/status','PATCH',{id,status:'Out for delivery'},admin.cookie);
+  const token=(await call('/api/admin/driver-access','POST',{id},admin.cookie)).data.path.split('#')[1];
+  const proof=async data=>{const response=await fetch('http://127.0.0.1:32197/api/driver/proof',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify(data)});return response.status;};
+  assert.equal(await proof({receiver:'Alex',notes:'3 sacks',recipient_confirmed:false}),400);
+  assert.equal(await proof({receiver:'Alex',notes:'3 sacks received',recipient_confirmed:true}),201);
+  assert.equal(await proof({receiver:'Other',notes:'changed',recipient_confirmed:true}),409);
+  assert.equal((await call(`/api/orders/${id}/confirm-delivery`,'POST',{confirmed:true},other.cookie)).status,404);
+  assert.equal((await call(`/api/orders/${id}/confirm-delivery`,'POST',{confirmed:true},buyer.cookie)).status,200);
+  assert.ok((await call(`/api/orders/${id}`,'GET',undefined,buyer.cookie)).data.proof.customer_confirmed);
+  await call('/api/admin/status','PATCH',{id,status:'Completed'},admin.cookie);
+  assert.equal((await call(`/api/orders/${id}/feedback`,'POST',{rating:0,comment:''},buyer.cookie)).status,400);
+  assert.equal((await call(`/api/orders/${id}/feedback`,'POST',{rating:5,comment:'Good rice'},buyer.cookie)).status,200);
+  assert.equal((await call(`/api/orders/${id}/feedback`,'POST',{rating:4,comment:'Updated'},buyer.cookie)).status,200);
+  assert.equal((await call(`/api/orders/${id}/feedback`,'POST',{rating:5,comment:'Not mine'},other.cookie)).status,404);
+  assert.equal((await call('/api/admin/feedback','GET',undefined,admin.cookie)).data[0].rating,4);
+  assert.equal(sql.prepare('SELECT count(*) n FROM order_feedback').get().n,1);
+  sql.close();
+ } finally {await Promise.all([stop(a),stop(b)]);rmSync(dir,{recursive:true,force:true});}
+});
