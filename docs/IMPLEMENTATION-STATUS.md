@@ -42,3 +42,7 @@ The Dockerfile was exercised through base-image retrieval and build execution, b
 ## Wholesale operations extension
 
 Minimum sack settings, capacity-checked Philippine-time delivery windows, unpaid Pending reservation expiry, optional consent-based text delivery acknowledgments with separate customer confirmation, and private completed-order feedback are implemented. Defaults: one sack minimum, 30-minute new unpaid Pending reservation, five orders per window. See README for operating rules. Proof is a reported acknowledgment, not a photo/signature or independently verified identity. These additions do not connect a real payment gateway or a physical delivery operation.
+
+## Post-defense interface and privacy revisions
+
+Compact sign-in; unified visible focus indicators; detailed registration with contact phone and optional delivery address; separate required agreement/privacy acknowledgments validated server-side with version/timestamp storage. Existing accounts are preserved without fabricated historical acceptance. Redundant account banners are removed while financial-demo disclosures remain. Data Privacy Notice explains collection, rights/request channels and separate device-location consent; it does not claim legal compliance.

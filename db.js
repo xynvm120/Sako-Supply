@@ -19,6 +19,7 @@ function column(table, name, definition) {
 }
 for(const [name,type] of [["delivery_date","TEXT"],["delivery_slot","TEXT"],["reservation_until","INTEGER"],["proof_consent","INTEGER NOT NULL DEFAULT 0"],["cancellation_reason","TEXT"]]) column("orders",name,type);
 column("users", "email_verified_at", "TEXT");
+for(const field of ["terms_version","privacy_version","policy_accepted_at"]) column("users",field,"TEXT");
 for (const [name, definition] of [
   ["description", "TEXT NOT NULL DEFAULT ''"],
   ["texture", "TEXT NOT NULL DEFAULT ''"],

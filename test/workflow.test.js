@@ -34,6 +34,7 @@ async function stop(child) {
 }
 function client(port) {
   return async (url, method = "GET", data, cookie) => {
+    if(url==="/api/auth/register" && data) data={phone:"09123456789",agreement:true,privacy_ack:true,...data};
     const r = await fetch(`http://127.0.0.1:${port}${url}`, {
       method,
       headers: {
@@ -1203,4 +1204,27 @@ test('wholesale settings, atomic slot capacity/expiry, delivery consent and comp
   assert.equal(sql.prepare('SELECT count(*) n FROM order_feedback').get().n,1);
   sql.close();
  } finally {await Promise.all([stop(a),stop(b)]);rmSync(dir,{recursive:true,force:true});}
+});
+
+test('registration requires contact details and explicit versioned policy acknowledgment',async()=>{
+ const dir=mkdtempSync(path.join(os.tmpdir(),'sako-consent-')),child=await start(dir,32200);
+ try {
+  const request=async data=>{
+   const r=await fetch('http://127.0.0.1:32200/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+   return {status:r.status,data:await r.json()};
+  };
+  const base={name:'Privacy Buyer',email:'privacy@example.test',password:'privacy-password-123'};
+  assert.equal((await request(base)).status,400);
+  assert.equal((await request({...base,phone:'09123456789',agreement:true})).status,400);
+  assert.equal((await request({...base,phone:'09123456789',agreement:true,privacy_ack:false})).status,400);
+  assert.equal((await request({...base,phone:'bad',agreement:true,privacy_ack:true})).status,400);
+  const result=await request({...base,phone:'09123456789',address:'Sample delivery address',agreement:true,privacy_ack:true});
+  assert.equal(result.status,201);
+  assert.equal(result.data.user.phone,'09123456789');
+  assert.equal(result.data.user.address,'Sample delivery address');
+  const sql=new DatabaseSync(path.join(dir,'sako.sqlite'));
+  const row=sql.prepare('SELECT terms_version,privacy_version,policy_accepted_at FROM users WHERE email=?').get(base.email);
+  assert.equal(row.terms_version,'2026-10-26');assert.equal(row.privacy_version,'2026-10-26');assert.ok(row.policy_accepted_at);
+  sql.close();
+ }finally {await stop(child);rmSync(dir,{recursive:true,force:true});}
 });

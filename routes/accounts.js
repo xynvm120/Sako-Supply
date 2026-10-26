@@ -135,13 +135,17 @@ export async function accountsRoute({ p, method, req, res, send }) {
       db.prepare("SELECT id FROM users WHERE email=?").get(email)
     )
       throw fail(409, "An account already uses that email. Sign in instead.");
+    const phone=str(b.phone,30),address=str(b.address,500);
+    if(!/^\+?[\d\s-]+$/.test(phone) || !/^\d{10,15}$/.test(phone.replace(/\D/g,""))) throw fail(400,"Enter a valid mobile number for order contact.");
+    if(b.address!==undefined && (typeof b.address!=="string" || b.address.length>500)) throw fail(400,"Use an address of up to 500 characters.");
+    if(b.agreement!==true || b.privacy_ack!==true) throw fail(400,"Accept the User Agreement and acknowledge the Data Privacy Notice to register.");
     const salt = randomBytes(16).toString("hex"),
       derived = (await scrypt(password, salt, 64)).toString("hex");
     const id = randomBytes(12).toString("hex");
     try {
       db.prepare(
-        "INSERT INTO users(id,name,email,password_hash,salt,created) VALUES(?,?,?,?,?,?)",
-      ).run(id, name, email, derived, salt, now());
+        "INSERT INTO users(id,name,email,password_hash,salt,created,phone,address,terms_version,privacy_version,policy_accepted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+      ).run(id, name, email, derived, salt, now(),phone,address,"2026-10-26","2026-10-26",now());
     } catch (e) {
       if (db.prepare("SELECT id FROM users WHERE email=?").get(email))
         throw fail(409, "An account already uses that email.");

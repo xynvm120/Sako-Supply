@@ -44,6 +44,8 @@ test("customer wholesale purchase, demo card, receipt printing, and delivery map
     .getByLabel("Password", { exact: true })
     .fill("defense-password-2026");
   await page.getByLabel("Confirm password", { exact: true }).fill("defense-password-2026");
+  await page.getByLabel("Mobile number", {exact:true}).fill("09123456789");
+  await page.getByRole("checkbox", { name: /I acknowledge the Data Privacy/ }).check();
   await page.getByRole("checkbox", { name: /I agree/ }).check();
   await page.getByRole("button", { name: "Create account →" }).click();
   await expect(page.locator("#account-dialog")).not.toBeVisible();
@@ -278,7 +280,7 @@ test("pickup orders explain why no map is shown and refresh status automatically
 }) => {
   await page.goto("/");
   await page.request.post("/api/auth/register", {
-    data: {
+    data: {phone:"09123456789",agreement:true,privacy_ack:true,
       name: "Pickup Buyer",
       email: "pickup-browser@example.test",
       password: "pickup-password-123",
@@ -328,7 +330,7 @@ test("street tile failure shows an error without invented driver coordinates", a
   );
   await page.goto("/");
   await page.request.post("/api/auth/register", {
-    data: {
+    data: {phone:"09123456789",agreement:true,privacy_ack:true,
       name: "Offline Map Buyer",
       email: "offline-map@example.test",
       password: "offline-password-123",
@@ -510,7 +512,7 @@ test("bulk tiers, zone fees, reorder, pending cancellation, and in-app updates w
 }) => {
   await page.goto("/");
   await page.request.post("/api/auth/register", {
-    data: {
+    data: {phone:"09123456789",agreement:true,privacy_ack:true,
       name: "Bulk Buyer",
       email: "bulk-ui@example.test",
       password: "bulk-ui-password",
@@ -642,7 +644,7 @@ test("stored customer markup is rendered as text in profiles, orders, and receip
     '<img class="xss-probe" src=x onerror="window.injected=true">';
   await page.goto("/");
   await page.request.post("/api/auth/register", {
-    data: {
+    data: {phone:"09123456789",agreement:true,privacy_ack:true,
       name: payload,
       email: "escaping-ui@example.test",
       password: "escaping-password-123",
@@ -729,6 +731,8 @@ test("password visibility and matching confirmations protect signup and reset", 
   await page.getByLabel('Email address').fill('password-ui@example.test');
   await page.getByLabel('Password',{exact:true}).fill('signup-password-123');
   await page.getByLabel('Confirm password',{exact:true}).fill('different-password');
+  await page.getByLabel('Mobile number',{exact:true}).fill('09123456789');
+  await page.getByRole('checkbox',{name:/I acknowledge the Data Privacy/}).check();
   await page.getByRole('checkbox',{name:/I agree/}).check();
   await page.getByRole('button',{name:'Create account →'}).click();
   expect(await page.getByLabel('Confirm password',{exact:true}).evaluate(el=>el.validationMessage)).toBe('Passwords do not match.');
@@ -763,7 +767,7 @@ test("password visibility and matching confirmations protect signup and reset", 
 
 test('assigned driver explicitly shares browser GPS and can stop or be revoked',async({page,playwright,browser})=>{
   await page.goto('/');
-  await page.request.post('/api/auth/register',{data:{name:'Driver test buyer',email:'driver-test@example.test',password:'driver-test-password'}});
+  await page.request.post('/api/auth/register',{data:{phone:"09123456789",agreement:true,privacy_ack:true,name:'Driver test buyer',email:'driver-test@example.test',password:'driver-test-password'}});
   const created=await page.request.post('/api/orders',{data:{customer:'Driver test buyer',phone:'09123456789',address:'Test address',method:'delivery',payment_method:'cash',items:[{id:1,quantity:1}]}});
   const order=await created.json();
   const admin=await playwright.request.newContext({baseURL:'http://127.0.0.1:32189'});
@@ -802,7 +806,7 @@ test('assigned driver explicitly shares browser GPS and can stop or be revoked',
 for (const method of ['gcash','maya']) test(`${method} checkout preview cancels, declines and approves without wallet credentials`,async({page})=>{
   if(method==='maya') { await page.clock.install(); await page.setViewportSize({width:390,height:844}); }
   await page.goto('/');
-  await page.request.post('/api/auth/register',{data:{name:'Wallet Buyer',email:`wallet-${method}@example.test`,password:'wallet-test-password'}});
+  await page.request.post('/api/auth/register',{data:{phone:"09123456789",agreement:true,privacy_ack:true,name:'Wallet Buyer',email:`wallet-${method}@example.test`,password:'wallet-test-password'}});
   await page.reload();
   await page.getByRole('button',{name:'View Dinorado details',exact:true}).click();
   await page.locator('#detail-add').getByRole('button').click();
@@ -858,6 +862,7 @@ test('plain-language agreement and back-to-top work on pages and dialogs',async(
   await page.locator('#account-link').click();
   await page.getByRole('button',{name:'Create account',exact:true}).click();
   await expect(page.locator('.agreement-summary')).toContainText('Before you create an account');
+  await page.locator('.agreement-summary summary').click();
   await expect(page.locator('.agreement-summary')).toContainText('no real money is transferred');
   await page.locator('#account-dialog').evaluate(el=>el.scrollTop=el.scrollHeight);
   await page.locator('#account-dialog').getByRole('button',{name:'Back to top of dialog'}).click();
@@ -871,7 +876,7 @@ test('plain-language agreement and back-to-top work on pages and dialogs',async(
 
 test('wholesale settings, delivery schedule, consented proof and customer feedback work together',async({page,browser})=>{
  await page.goto('/');
- await page.request.post('/api/auth/register',{data:{name:'Wholesale features',email:'features@example.test',password:'features-password'}});
+ await page.request.post('/api/auth/register',{data:{phone:"09123456789",agreement:true,privacy_ack:true,name:'Wholesale features',email:'features@example.test',password:'features-password'}});
  await page.reload();
  const adminContext=await browser.newContext(),driverContext=await browser.newContext();
  try {
@@ -927,4 +932,43 @@ test('wholesale settings, delivery schedule, consented proof and customer feedba
   await adminContext.request.patch('http://127.0.0.1:32189/api/admin/store-settings',{data:{min_sacks:1,reservation_minutes:30,slot_capacity:5}});
   await driverContext.close();await adminContext.close();
  }
+});
+
+test('compact login fits laptop and phone screens with a single accessible focus treatment',async({page})=>{
+ await page.goto('/');
+ for(const [width,height] of [[1366,768],[390,844],[360,640],[320,568]]) {
+  await page.setViewportSize({width,height});
+  await page.locator('#account-link').click();
+  const dialog=page.locator('#account-dialog');
+  await expect(dialog).toHaveAttribute('data-mode','login');
+  expect(await dialog.evaluate(el=>el.scrollHeight<=el.clientHeight+1)).toBe(true);
+  await expect(dialog.locator('.auth-intro')).toHaveCount(0);
+  await page.getByLabel('Email address',{exact:true}).focus();
+  const style=await page.getByLabel('Email address',{exact:true}).evaluate(el=>{const c=getComputedStyle(el);return {offset:c.outlineOffset,shadow:c.boxShadow,border:c.borderTopColor,outline:c.outlineColor};});
+  expect(style.offset).toBe('-2px');expect(style.shadow).toBe('none');expect(style.outline).toBe(style.border);
+  if(width===320) await page.screenshot({path:'/tmp/sako-login-compact.png'});
+  await dialog.getByRole('button',{name:'Close',exact:true}).click();
+ }
+ await page.locator('#theme-toggle').click();await page.locator('#account-link').click();
+ await page.getByLabel('Email address',{exact:true}).focus();
+ expect(await page.getByLabel('Email address',{exact:true}).evaluate(el=>getComputedStyle(el).outlineColor)).toBe('rgb(192, 226, 151)');
+});
+
+test('detailed registration saves contact fields and requires privacy acknowledgment',async({page})=>{
+ await page.goto('/');await page.locator('#account-link').click();await page.getByRole('button',{name:'Create account',exact:true}).click();
+ await page.getByLabel('Full name',{exact:true}).fill('Detailed Buyer');
+ await page.getByLabel('Mobile number',{exact:true}).fill('09123456789');
+ await page.getByLabel('Delivery address (optional)',{exact:true}).fill('Sample registration address');
+ await page.getByLabel('Email address',{exact:true}).fill('detailed-ui@example.test');
+ await page.getByLabel('Password',{exact:true}).fill('detailed-password-123');
+ await page.getByLabel('Confirm password',{exact:true}).fill('detailed-password-123');
+ await page.getByRole('checkbox',{name:/I agree/}).check();
+ await page.getByRole('button',{name:'Create account →'}).click();
+ await expect(page.locator('#customer-auth')).toBeVisible();
+ await expect(page.getByRole('checkbox',{name:/I acknowledge the Data Privacy/})).not.toBeChecked();
+ await page.getByRole('checkbox',{name:/I acknowledge the Data Privacy/}).check();
+ await page.getByRole('button',{name:'Create account →'}).click();
+ await expect(page.locator('#account-dialog')).not.toBeVisible();
+ const session=await (await page.request.get('/api/session')).json();
+ expect(session.user.phone).toBe('09123456789');expect(session.user.address).toBe('Sample registration address');
 });

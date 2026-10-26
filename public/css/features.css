@@ -281,3 +281,59 @@ html[data-theme="dark"] .bulk-offer {
 #order-extras { margin: 24px 0; padding: 20px; border: 1px solid var(--line); border-radius: 18px; overflow-wrap: anywhere; }
 #store-settings { max-width: 540px; }
 #reservation-countdown { font-weight: 600; }
+
+/* A single, consistent focus treatment; retain keyboard visibility without stacked borders. */
+:root { --control-focus: #246346; }
+html[data-theme="dark"] { --control-focus: #c0e297; }
+html[data-theme] :is(input, select, textarea):focus {
+  border-color: var(--control-focus);
+  outline: 2px solid var(--control-focus);
+  outline-offset: -2px;
+  box-shadow: none;
+}
+html[data-theme] :is(button, a, [tabindex]):focus-visible {
+  outline: 2px solid var(--control-focus);
+  outline-offset: 3px;
+  box-shadow: none;
+}
+#account-dialog[data-mode="login"] {
+  width: min(430px, calc(100vw - 24px));
+  max-width: 430px;
+  max-height: calc(100dvh - 24px);
+  padding: 20px;
+  border-radius: 20px;
+}
+#account-dialog[data-mode="login"] .dialog-header {
+  position: static;
+  padding: 0 0 10px;
+  margin: 0 0 10px;
+  border-bottom: 0;
+}
+#account-dialog[data-mode="login"] .dialog-header h2 { font-size: 24px; }
+#account-dialog[data-mode="login"] .tabs { margin: 0 0 10px; gap: 8px; }
+#account-dialog[data-mode="login"] .tabs button { min-height: 40px; padding: 8px 16px; }
+.auth-description { font-size: 13px; margin: 10px 0 14px; }
+#account-dialog[data-mode="login"] #customer-auth label { margin-bottom: 10px; font-size: 12px; }
+#account-dialog[data-mode="login"] label input { min-height: 44px; padding: 9px 12px; margin-top: 5px; }
+#account-dialog[data-mode="login"] .password-toggle { margin-bottom: 10px; }
+#account-dialog[data-mode="login"] .checkout-button { min-height: 44px; margin-top: 4px; padding: 10px 16px; }
+#auth-error:empty { display: none; }
+.auth-forgot { display: block; background: transparent; border: 0; color: inherit; text-decoration: underline; margin: 10px auto; padding: 4px; font-size: 12px; }
+.auth-policy-links { text-align: center; font-size: 11px; margin: 10px 0 0; line-height: 1.6; }
+#account-dialog[data-mode="register"] { width: min(740px, 94vw); max-width: 740px; }
+.registration-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+#customer-auth .registration-grid label { margin-bottom: 8px; }
+#customer-auth .registration-grid .password-control { align-items: end; }
+#customer-auth .registration-grid .password-toggle { margin-bottom: 10px; }
+#customer-auth .agreement-summary { padding: 14px; margin: 12px 0; }
+#customer-auth .agreement-summary summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.privacy-summary { font-size: 12px; line-height: 1.65; }
+#customer-auth .agreement-summary label:has(input[type="checkbox"]) { margin-top: 12px; }
+.payment-disclosure { font-size: 12px; line-height: 1.6; margin-bottom: 18px; }
+@media (max-width: 560px) {
+  .registration-grid { grid-template-columns: 1fr; }
+}
+@media (max-height: 650px) {
+  #account-dialog[data-mode="login"] { padding: 16px; }
+  #account-dialog[data-mode="login"] .auth-description { margin: 6px 0 10px; }
+}
